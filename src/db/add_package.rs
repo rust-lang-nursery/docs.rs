@@ -120,14 +120,6 @@ pub(crate) fn add_package_into_database(
     add_owners_into_database(&conn, &registry_data.owners, crate_id)?;
     add_compression_into_database(&conn, compression_algorithms.into_iter(), release_id)?;
 
-    // Update the crates table with the new release
-    conn.execute(
-        "UPDATE crates
-         SET latest_version_id = $2
-         WHERE id = $1",
-        &[&crate_id, &release_id],
-    )?;
-
     Ok(release_id)
 }
 

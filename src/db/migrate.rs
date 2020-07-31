@@ -364,6 +364,17 @@ pub fn migrate(version: Option<Version>, conn: &Connection) -> CratesfyiResult<(
             "DROP TABLE compression_rels;
              ALTER TABLE files DROP COLUMN compression;"
         ),
+        migration!(
+            context,
+            // version
+            15,
+            // description
+            "Remove unused latest_version_id column",
+            // upgrade query
+            "ALTER TABLE crates DROP COLUMN latest_version_id;",
+            // downgrade query
+            "ALTER TABLE crates ADD COLUMN latest_version_id INT DEFAULT 0;",
+        )
     ];
 
     for migration in migrations {
