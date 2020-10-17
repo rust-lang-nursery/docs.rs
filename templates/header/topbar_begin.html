@@ -28,13 +28,14 @@
                 </a>
 
                 <ul class="pure-menu-list pure-menu-right">
-                    <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover pure-menu-opt-children">
+                    <li class="pure-menu-item pure-menu-has-children pure-menu-opt-children">
                         <a href="/about" class="pure-menu-link">
                             <span title="About">{{ "info-circle" | fas }}</span>
                             <span class="title">About</span>
                         </a>
 
                         <ul class="pure-menu-children">
+                            {{ macros::menu_link(href="/about", text="About") }}
                             {{ macros::menu_link(href="/about/badges", text="Badges") }}
                             {{ macros::menu_link(href="/about/builds", text="Builds") }}
                             {{ macros::menu_link(href="/about/metadata", text="Metadata") }}
@@ -42,13 +43,14 @@
                         </ul>
                     </li>{#
 
-                    #}<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover pure-menu-opt-children">
+                    #}<li class="pure-menu-item pure-menu-has-children pure-menu-opt-children">
                         <a href="/releases" class="pure-menu-link">
                             <span title="Releases">{{ "leaf" | fas }}</span>
                             <span class="title">Releases</span>
                         </a>
 
                         <ul class="pure-menu-children">
+                            {{ macros::menu_link(href="/releases", text="Recent Releases") }}
                             {{ macros::menu_link(href="/releases/stars", text="Releases by Stars") }}
                             {{ macros::menu_link(href="/releases/recent-failures", text="Recent Build Failures") }}
                             {{ macros::menu_link(href="/releases/failures", text="Build Failures by Stars") }}
@@ -58,12 +60,18 @@
                     </li>{#
 
                     The Rust dropdown menu
-                    #}<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover pure-menu-opt">
+                    #}<li class="pure-menu-item pure-menu-has-children pure-menu-opt">
                         <a href="https://www.rust-lang.org/" target="_blank" class="pure-menu-link">
                             Rust
                         </a>
 
                         <ul class="pure-menu-children">
+                            {{ macros::menu_link(
+                                href="https://www.rust-lang.org/",
+                                text="The Rust Programming Language",
+                                target="_blank"
+                            ) }}
+
                             {{ macros::menu_link(
                                 href="https://doc.rust-lang.org/book/",
                                 text="The Book",
@@ -103,4 +111,3 @@
                         </ul>
                     </li>
                 </ul>
-

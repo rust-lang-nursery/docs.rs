@@ -49,6 +49,16 @@
         backdrop.style.display = "block";
     }
     function menuOnClick(e) {
+        // The "About", "Releases", and "Rust" menus act as menus on desktop,
+        // and links on mobile (due to pure-menu-opt-children). On desktop,
+        // we inhibit navigation events on click so the menu open action can
+        // take effect. Detect desktop by noticing that the second child
+        // is hidden.
+        console.log(this.children[1]);
+        console.log(window.getComputedStyle(this.children[1]).display);
+        if (this.children.length > 1 && window.getComputedStyle(this.children[1]).display != 'none') {
+            return false;
+        }
         if (this.getAttribute("href") != "#") {
             return;
         }
