@@ -11,14 +11,28 @@ use docs_rs::{
 };
 use failure::{err_msg, Error, ResultExt};
 use once_cell::sync::OnceCell;
+use sentry::integrations::failure::capture_error;
+use sentry::integrations::log::LogIntegration;
 use structopt::StructOpt;
 use strum::VariantNames;
 
 pub fn main() {
     let _ = dotenv::dotenv();
-    logger_init();
+    //rustwide::logging::init_with(logger_init());
+    let sentry_log = LogIntegration::default().with_env_logger_dest(Some(logger_init()));
+    let _guard = sentry::init((
+        "TODO: fill this in with the secret from https://sentry.io/organizations/rust-lang/",
+        sentry::ClientOptions {
+            release: Some(docs_rs::BUILD_VERSION.into()),
+            ..Default::default()
+        }
+        .add_integration(sentry_log),
+    ));
+    log::info!("this is a log from the main thread");
+    log::error!("this is an error from the main thread");
 
     if let Err(err) = CommandLine::from_args().handle_args() {
+        capture_error(&err);
         let mut msg = format!("Error: {}", err);
         for cause in err.iter_causes() {
             write!(msg, "\n\nCaused by:\n    {}", cause).unwrap();
@@ -31,11 +45,12 @@ pub fn main() {
     }
 }
 
-fn logger_init() {
+// NOTE: this function should be idempotent
+fn logger_init() -> env_logger::Logger {
     use std::io::Write;
 
     let env = env_logger::Env::default().filter_or("DOCSRS_LOG", "docs_rs=info");
-    let logger = env_logger::from_env(env)
+    env_logger::from_env(env)
         .format(|buf, record| {
             writeln!(
                 buf,
@@ -46,9 +61,7 @@ fn logger_init() {
                 record.args()
             )
         })
-        .build();
-
-    rustwide::logging::init_with(logger);
+        .build()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumString, strum::EnumVariantNames)]
