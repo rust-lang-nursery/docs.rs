@@ -47,6 +47,10 @@ pub struct Config {
     // For unit-tests the number has to be higher.
     pub(crate) random_crate_search_view_size: u32,
 
+    // where do we want to store the locally cached index files
+    // for the remote archives?
+    pub(crate) local_archive_cache_path: PathBuf,
+
     // Build params
     pub(crate) build_attempts: u16,
     pub(crate) rustwide_workspace: PathBuf,
@@ -97,6 +101,10 @@ impl Config {
             random_crate_search_view_size: env("DOCSRS_RANDOM_CRATE_SEARCH_VIEW_SIZE", 500)?,
 
             rustwide_workspace: env("CRATESFYI_RUSTWIDE_WORKSPACE", PathBuf::from(".workspace"))?,
+            local_archive_cache_path: env(
+                "CRATESFYI_ARCHIVE_INDEX_CACHE_PATH",
+                PathBuf::from(".archive_cache"),
+            )?,
             inside_docker: env("DOCS_RS_DOCKER", false)?,
             local_docker_image: maybe_env("DOCS_RS_LOCAL_DOCKER_IMAGE")?,
             toolchain: env("CRATESFYI_TOOLCHAIN", "nightly".to_string())?,

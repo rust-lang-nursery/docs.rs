@@ -1,4 +1,4 @@
-use super::{Blob, StorageTransaction};
+use super::{Blob, FileRange, StorageTransaction};
 use crate::{Config, Metrics};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use failure::Error;
@@ -84,13 +84,19 @@ impl S3Backend {
         })
     }
 
-    pub(super) fn get(&self, path: &str, max_size: usize) -> Result<Blob, Error> {
+    pub(super) fn get(
+        &self,
+        path: &str,
+        max_size: usize,
+        range: Option<FileRange>,
+    ) -> Result<Blob, Error> {
         self.runtime.block_on(async {
             let res = self
                 .client
                 .get_object(GetObjectRequest {
                     bucket: self.bucket.to_string(),
                     key: path.into(),
+                    range: range.map(|r| format!("bytes={}-{}", r.start(), r.end())),
                     ..Default::default()
                 })
                 .await

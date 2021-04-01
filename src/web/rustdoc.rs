@@ -329,11 +329,6 @@ pub fn rustdoc_html_server_handler(req: &mut Request) -> IronResult<Response> {
 
     rendering_time.step("fetch from storage");
 
-    // Add rustdoc prefix, name and version to the path for accessing the file stored in the database
-    req_path.insert(0, "rustdoc");
-    req_path.insert(1, &name);
-    req_path.insert(2, &version);
-
     // Create the path to access the file from
     let mut path = req_path.join("/");
     if path.ends_with('/') {
@@ -343,20 +338,44 @@ pub fn rustdoc_html_server_handler(req: &mut Request) -> IronResult<Response> {
     }
     let mut path = ctry!(req, percent_decode(path.as_bytes()).decode_utf8());
 
-    // Attempt to load the file from the database
-    let file = match File::from_path(&storage, &path, &config) {
-        Ok(file) => file,
-        Err(err) => {
-            log::debug!("got error serving {}: {}", path, err);
-            // If it fails, we try again with /index.html at the end
-            path.to_mut().push_str("/index.html");
-            req_path.push("index.html");
+    let file = if krate.archive_storage {
+        let archive = format!("rustdoc/{0}/rustdoc-{0}-{1}.zip", name, version);
+        match File::from_archive_path(&storage, &archive, &path, &config) {
+            Ok(file) => file,
+            Err(err) => {
+                log::debug!("got error serving {}: {}", path, err);
+                // If it fails, we try again with /index.html at the end
+                path.to_mut().push_str("/index.html");
+                req_path.push("index.html");
 
-            return if ctry!(req, storage.exists(&path)) {
-                redirect(&name, &version, &req_path[3..])
-            } else {
-                Err(Nope::ResourceNotFound.into())
-            };
+                return if ctry!(req, storage.exists_in_archive(&archive, &path)) {
+                    redirect(&name, &version, &req_path[3..])
+                } else {
+                    Err(Nope::ResourceNotFound.into())
+                };
+            }
+        }
+    } else {
+        // Add rustdoc prefix, name and version to the path for accessing the file stored in the database
+        let remote_path = format!("rustdoc/{}/{}/{}", name, version, path);
+
+        // Attempt to load the file from the database
+
+        match File::from_path(&storage, &remote_path, &config) {
+            Ok(file) => file,
+            Err(err) => {
+                log::debug!("got error serving {}: {}", path, err);
+                // If it fails, we try again with /index.html at the end
+                path.to_mut().push_str("/index.html");
+                req_path.push("index.html");
+                let remote_path = format!("rustdoc/{}/{}/{}", name, version, path);
+
+                return if ctry!(req, storage.exists(&remote_path)) {
+                    redirect(&name, &version, &req_path[3..])
+                } else {
+                    Err(Nope::ResourceNotFound.into())
+                };
+            }
         }
     };
 
@@ -391,9 +410,6 @@ pub fn rustdoc_html_server_handler(req: &mut Request) -> IronResult<Response> {
     // The path within this crate version's rustdoc output
     let (target, inner_path) = {
         let mut inner_path = req_path.clone();
-
-        // Drop the `rustdoc/:crate/:version[/:platform]` prefix
-        inner_path.drain(..3).for_each(drop);
 
         let target = if inner_path.len() > 1
             && krate

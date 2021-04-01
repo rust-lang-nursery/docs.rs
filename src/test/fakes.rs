@@ -343,6 +343,7 @@ impl<'a> FakeRelease<'a> {
             self.has_examples,
             algs,
             github_repo,
+            false, // TODO support fake releases with archive storage
         )?;
         crate::db::update_crate_data_in_database(
             &mut db.conn(),

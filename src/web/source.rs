@@ -170,7 +170,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         for _ in 0..4 {
             req_path.remove(0);
         }
-        let file_path = format!("sources/{}/{}/{}", name, version, req_path.join("/"));
+        let file_path = req_path.join("/");
 
         // FileList::from_path is only working for directories
         // remove file name if it's not a directory
@@ -193,10 +193,47 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
     let storage = extension!(req, Storage);
     let config = extension!(req, Config);
 
+    // TODO should we use match_version here?
+    let archive_storage: bool = {
+        let rows = ctry!(
+            req,
+            conn.query(
+                "
+                SELECT archive_storage
+                FROM releases 
+                INNER JOIN crates ON releases.crate_id = crates.id
+                WHERE 
+                    name = $1 AND 
+                    version = $2
+                ",
+                &[&name, &version]
+            )
+        );
+
+        let row = rows.get(0).ok_or(Nope::VersionNotFound)?;
+
+        row.get::<_, bool>(0)
+    };
+
     // try to get actual file first
     // skip if request is a directory
     let file = if !file_path.ends_with('/') {
-        DbFile::from_path(&storage, &file_path, &config).ok()
+        if archive_storage {
+            DbFile::from_archive_path(
+                &storage, // TODO: unify finding archive names somewhere
+                &format!("sources/{0}/sources-{0}-{1}.zip", name, version),
+                &file_path,
+                &config,
+            )
+            .ok()
+        } else {
+            DbFile::from_path(
+                &storage,
+                &format!("sources/{}/{}/{}", name, version, file_path),
+                &config,
+            )
+            .ok()
+        }
     } else {
         None
     };
@@ -217,6 +254,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         (None, false)
     };
 
+    // TODO file_list could actually just use the local archive index
     let file_list =
         FileList::from_path(&mut conn, &name, &version, &req_path).ok_or(Nope::NoResults)?;
 

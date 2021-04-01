@@ -1,3 +1,4 @@
+mod archive_index;
 mod compression;
 mod database;
 mod s3;
@@ -13,11 +14,14 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
     fmt, fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 const MAX_CONCURRENT_UPLOADS: usize = 1000;
+
+pub type FileRange = std::ops::RangeInclusive<u64>;
 
 #[derive(Debug, failure::Fail)]
 #[fail(display = "path not found")]
@@ -96,11 +100,13 @@ enum StorageBackend {
 
 pub struct Storage {
     backend: StorageBackend,
+    local_archive_cache_path: PathBuf,
 }
 
 impl Storage {
     pub fn new(pool: Pool, metrics: Arc<Metrics>, config: &Config) -> Result<Self, Error> {
         Ok(Storage {
+            local_archive_cache_path: config.local_archive_cache_path.clone(),
             backend: match config.storage_backend {
                 StorageKind::Database => {
                     StorageBackend::Database(DatabaseBackend::new(pool, metrics))
@@ -117,16 +123,160 @@ impl Storage {
         }
     }
 
+    pub(crate) fn exists_in_archive(&self, archive_path: &str, path: &str) -> Result<bool, Error> {
+        let index = self.get_index_for(archive_path)?;
+        Ok(index.find_file(path).is_ok())
+    }
+
     pub(crate) fn get(&self, path: &str, max_size: usize) -> Result<Blob, Error> {
         let mut blob = match &self.backend {
-            StorageBackend::Database(db) => db.get(path, max_size),
-            StorageBackend::S3(s3) => s3.get(path, max_size),
+            StorageBackend::Database(db) => db.get(path, max_size, None),
+            StorageBackend::S3(s3) => s3.get(path, max_size, None),
         }?;
         if let Some(alg) = blob.compression {
             blob.content = decompress(blob.content.as_slice(), alg, max_size)?;
             blob.compression = None;
         }
         Ok(blob)
+    }
+
+    pub(super) fn get_range(
+        &self,
+        path: &str,
+        max_size: usize,
+        range: FileRange,
+        compression: Option<CompressionAlgorithm>,
+    ) -> Result<Blob, Error> {
+        let mut blob = match &self.backend {
+            StorageBackend::Database(db) => db.get(path, max_size, Some(range)),
+            StorageBackend::S3(s3) => s3.get(path, max_size, Some(range)),
+        }?;
+        // file content encoding is ignored for ranges
+        // since we only have a range anyways, and we need the encoding
+        // for the range, not the file
+        if let Some(alg) = compression {
+            blob.content = decompress(blob.content.as_slice(), alg, max_size)?;
+            blob.compression = None;
+        }
+        Ok(blob)
+    }
+
+    fn get_index_for(&self, archive_path: &str) -> Result<archive_index::Index, Error> {
+        let remote_index_path = format!("{}.index", archive_path);
+        let local_index_path = self.local_archive_cache_path.join(&remote_index_path);
+
+        if local_index_path.exists() {
+            let mut file = fs::File::open(local_index_path)?;
+            archive_index::Index::load(&mut file)
+        } else {
+            let index_content = self.get(&remote_index_path, std::usize::MAX)?.content;
+
+            fs::create_dir_all(
+                local_index_path
+                    .parent()
+                    .ok_or_else(|| err_msg("index path without parent"))?,
+            )?;
+            let mut file = fs::File::create(&local_index_path)?;
+            file.write_all(&index_content)?;
+
+            archive_index::Index::load(&mut &index_content[..])
+        }
+    }
+
+    pub(crate) fn get_from_archive(
+        &self,
+        archive_path: &str,
+        path: &str,
+        max_size: usize,
+    ) -> Result<Blob, Error> {
+        let index = self.get_index_for(archive_path)?;
+        let info = index.find_file(path)?;
+
+        let blob = self.get_range(
+            archive_path,
+            max_size,
+            info.range(),
+            Some(info.compression()),
+        )?;
+
+        Ok(Blob {
+            // TODO: what is this path used for after `get`? Can we really just concat zip and
+            // path inside?
+            path: format!("{}/{}", archive_path, path),
+            mime: detect_mime(&path).into(),
+            date_updated: blob.date_updated,
+            content: blob.content,
+            compression: None,
+        })
+    }
+
+    pub(crate) fn store_all_in_archive(
+        &self,
+        archive_path: &str,
+        root_dir: &Path,
+    ) -> Result<(HashMap<PathBuf, String>, CompressionAlgorithm), Error> {
+        let mut file_paths = HashMap::new();
+
+        // due to how we retrieve the archived files, the compression method has to be supported
+        // by our normal content-encoding / compression logic.
+        // Deflate is not supported right now, and is compressing worse anyways.
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Bzip2);
+
+        let mut zip = zip::ZipWriter::new(io::Cursor::new(Vec::new()));
+        for file_path in get_file_list(root_dir)? {
+            let mut file = fs::File::open(root_dir.join(&file_path))?;
+
+            // TODO: should we create directories with `start_directory`?
+            // it's not standard, but convention for zip files
+
+            zip.start_file(file_path.to_str().unwrap(), options)?;
+            io::copy(&mut file, &mut zip)?;
+
+            let mime = detect_mime(&file_path);
+            file_paths.insert(file_path, mime.to_string());
+        }
+
+        let mut zip_content = zip.finish()?.into_inner();
+        let index = archive_index::Index::new_from_zip(&mut io::Cursor::new(&mut zip_content))?;
+        let mut index_content = vec![];
+        index.save(&mut index_content)?;
+        let alg = CompressionAlgorithm::default();
+        let compressed_index_content = compress(&index_content[..], alg)?;
+
+        let remote_index_path = format!("{}.index", &archive_path);
+
+        // additionally store the index in the local cache, so it's directly available
+        let local_index_path = self.local_archive_cache_path.join(&remote_index_path);
+        if local_index_path.exists() {
+            fs::remove_file(&local_index_path)?;
+        }
+        fs::create_dir_all(local_index_path.parent().unwrap())?;
+        let mut local_index_file = fs::File::create(&local_index_path)?;
+        local_index_file.write_all(&index_content)?;
+
+        self.store_inner(
+            vec![
+                Blob {
+                    path: archive_path.to_string(),
+                    mime: "application/zip".to_owned(),
+                    content: zip_content,
+                    compression: None,
+                    date_updated: Utc::now(),
+                },
+                Blob {
+                    path: remote_index_path,
+                    mime: "application/octet-stream".to_owned(),
+                    content: compressed_index_content,
+                    compression: Some(alg),
+                    date_updated: Utc::now(),
+                },
+            ]
+            .into_iter()
+            .map(Ok),
+        )?;
+
+        Ok((file_paths, CompressionAlgorithm::Bzip2))
     }
 
     fn transaction<T, F>(&self, f: F) -> Result<T, Error>
@@ -384,6 +534,41 @@ mod backend_tests {
         Ok(())
     }
 
+    fn test_get_range(storage: &Storage) -> Result<(), Error> {
+        let blob = Blob {
+            path: "foo/bar.txt".into(),
+            mime: "text/plain".into(),
+            date_updated: Utc::now(),
+            compression: None,
+            content: b"test content\n".to_vec(),
+        };
+
+        storage.store_blobs(vec![blob.clone()])?;
+
+        assert_eq!(
+            blob.content[0..=4],
+            storage
+                .get_range("foo/bar.txt", std::usize::MAX, 0..=4, None)?
+                .content
+        );
+        assert_eq!(
+            blob.content[5..=12],
+            storage
+                .get_range("foo/bar.txt", std::usize::MAX, 5..=12, None)?
+                .content
+        );
+
+        for path in &["bar.txt", "baz.txt", "foo/baz.txt"] {
+            assert!(storage
+                .get_range(path, std::usize::MAX, 0..=4, None)
+                .unwrap_err()
+                .downcast_ref::<PathNotFoundError>()
+                .is_some());
+        }
+
+        Ok(())
+    }
+
     fn test_get_too_big(storage: &Storage) -> Result<(), Error> {
         const MAX_SIZE: usize = 1024;
 
@@ -447,6 +632,67 @@ mod backend_tests {
         }
 
         assert_eq!(NAMES.len(), metrics.uploaded_files_total.get() as usize);
+
+        Ok(())
+    }
+
+    fn test_store_all_in_archive(storage: &Storage, metrics: &Metrics) -> Result<(), Error> {
+        let dir = tempfile::Builder::new()
+            .prefix("docs.rs-upload-archive-test")
+            .tempdir()?;
+        let files = ["Cargo.toml", "src/main.rs"];
+        for &file in &files {
+            let path = dir.path().join(file);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, "data")?;
+        }
+
+        let (stored_files, compression_alg) =
+            storage.store_all_in_archive("folder/test.zip", dir.path())?;
+        // TODO: test if the index was stored locally and remotely
+
+        assert_eq!(compression_alg, CompressionAlgorithm::Bzip2);
+        assert_eq!(stored_files.len(), files.len());
+        for name in &files {
+            let name = Path::new(name);
+            assert!(stored_files.contains_key(name));
+        }
+        assert_eq!(
+            stored_files.get(Path::new("Cargo.toml")).unwrap(),
+            "text/toml"
+        );
+        assert_eq!(
+            stored_files.get(Path::new("src/main.rs")).unwrap(),
+            "text/rust"
+        );
+
+        // delete the existing index to test the download of it
+        // the first exists-query will download and store the index
+        // TODO: test if the local index doesn't exist
+        assert_eq!(
+            storage.exists_in_archive("folder/test.zip", "Cargo.toml")?,
+            true
+        );
+        // the second one will use the local index
+        // TODO: test if the local index does exist now
+        assert_eq!(
+            storage.exists_in_archive("folder/test.zip", "src/main.rs")?,
+            true
+        );
+
+        let file = storage.get_from_archive("folder/test.zip", "Cargo.toml", std::usize::MAX)?;
+        assert_eq!(file.content, b"data");
+        assert_eq!(file.mime, "text/toml");
+        assert_eq!(file.path, "folder/test.zip/Cargo.toml");
+
+        let file = storage.get_from_archive("folder/test.zip", "src/main.rs", std::usize::MAX)?;
+        assert_eq!(file.content, b"data");
+        assert_eq!(file.mime, "text/rust");
+        assert_eq!(file.path, "folder/test.zip/src/main.rs");
+
+        assert_eq!(2, metrics.uploaded_files_total.get());
 
         Ok(())
     }
@@ -645,6 +891,7 @@ mod backend_tests {
             test_batched_uploads,
             test_exists,
             test_get_object,
+            test_get_range,
             test_get_too_big,
             test_delete_prefix,
             test_delete_percent,
@@ -653,6 +900,7 @@ mod backend_tests {
         tests_with_metrics {
             test_store_blobs,
             test_store_all,
+            test_store_all_in_archive,
         }
     }
 }

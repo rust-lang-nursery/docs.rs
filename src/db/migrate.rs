@@ -618,6 +618,13 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<(
             DROP INDEX github_repos_stars_idx;
             ",
         ),
+        migration!(
+            context,
+            27,
+            "add archive-storage marker for releases",
+            "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
+            "ALTER TABLE releases DROP COLUMN archive_storage;",
+        ),
     ];
 
     for migration in migrations {
