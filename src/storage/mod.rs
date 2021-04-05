@@ -162,6 +162,7 @@ impl Storage {
     }
 
     fn get_index_for(&self, archive_path: &str) -> Result<archive_index::Index, Error> {
+        // remote/folder/and/x.zip.index
         let remote_index_path = format!("{}.index", archive_path);
         let local_index_path = self.local_archive_cache_path.join(&remote_index_path);
 
@@ -200,8 +201,6 @@ impl Storage {
         )?;
 
         Ok(Blob {
-            // TODO: what is this path used for after `get`? Can we really just concat zip and
-            // path inside?
             path: format!("{}/{}", archive_path, path),
             mime: detect_mime(&path).into(),
             date_updated: blob.date_updated,
@@ -276,7 +275,8 @@ impl Storage {
             .map(Ok),
         )?;
 
-        Ok((file_paths, CompressionAlgorithm::Bzip2))
+        let file_alg = CompressionAlgorithm::Bzip2;
+        Ok((file_paths, file_alg))
     }
 
     fn transaction<T, F>(&self, f: F) -> Result<T, Error>

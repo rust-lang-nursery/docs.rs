@@ -254,7 +254,6 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         (None, false)
     };
 
-    // TODO file_list could actually just use the local archive index
     let file_list =
         FileList::from_path(&mut conn, &name, &version, &req_path).ok_or(Nope::NoResults)?;
 

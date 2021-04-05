@@ -1,5 +1,6 @@
+use crate::error::Result;
 use crate::storage::{compression::CompressionAlgorithm, FileRange};
-use failure::Error;
+use failure::ResultExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
@@ -26,19 +27,23 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn load(reader: impl io::Read) -> Result<Index, Error> {
-        serde_json::from_reader(reader).map_err(|_| failure::err_msg("deserialization error"))
+    pub fn load(reader: impl io::Read) -> Result<Index> {
+        serde_json::from_reader(reader)
+            .context("deserialization error")
+            .map_err(Into::into)
     }
 
-    pub fn save(&self, writer: impl io::Write) -> Result<(), Error> {
-        serde_json::to_writer(writer, self).map_err(|_| failure::err_msg("serialization error"))
+    pub fn save(&self, writer: impl io::Write) -> Result<()> {
+        serde_json::to_writer(writer, self)
+            .context("serialization error")
+            .map_err(Into::into)
     }
 
-    pub fn new_from_zip<R: io::Read + io::Seek>(zipfile: &mut R) -> Result<Index, Error> {
+    pub fn new_from_zip<R: io::Read + io::Seek>(zipfile: &mut R) -> Result<Index> {
         let mut archive = zip::ZipArchive::new(zipfile)?;
 
         // get file locations
-        let mut files: HashMap<PathBuf, FileInfo> = HashMap::new();
+        let mut files: HashMap<PathBuf, FileInfo> = HashMap::with_capacity(archive.len());
         for i in 0..archive.len() {
             let zf = archive.by_index(i)?;
 
@@ -48,7 +53,7 @@ impl Index {
                     range: zf.data_start()..=(zf.data_start() + zf.compressed_size() - 1),
                     compression: match zf.compression() {
                         zip::CompressionMethod::Bzip2 => CompressionAlgorithm::Bzip2,
-                        _ => failure::bail!("unsupported compression algorithm in zip-file"),
+                        c => failure::bail!("unsupported compression algorithm {} in zip-file", c),
                     },
                 },
             );
@@ -57,9 +62,9 @@ impl Index {
         Ok(Index { files })
     }
 
-    pub fn find_file<P: AsRef<Path>>(&self, path: P) -> Result<&FileInfo, Error> {
+    pub fn find_file<P: AsRef<Path>>(&self, path: P) -> Result<&FileInfo> {
         self.files
-            .get(&path.as_ref().to_path_buf())
+            .get(path.as_ref())
             .ok_or_else(|| super::PathNotFoundError.into())
     }
 }
