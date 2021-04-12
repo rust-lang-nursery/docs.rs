@@ -64,7 +64,6 @@ impl<'a> FakeRelease<'a> {
                 targets: vec![Target::dummy_lib("fake_package".into(), None)],
                 readme: None,
                 keywords: vec!["fake".into(), "package".into()],
-                authors: vec!["Fake Person <fake@example.com>".into()],
                 features: [
                     ("default".into(), vec!["feature1".into(), "feature3".into()]),
                     ("feature1".into(), Vec::new()),
@@ -118,11 +117,6 @@ impl<'a> FakeRelease<'a> {
 
     pub(crate) fn version(mut self, new: &str) -> Self {
         self.package.version = new.into();
-        self
-    }
-
-    pub(crate) fn author(mut self, author: &str) -> Self {
-        self.package.authors = vec![author.into()];
         self
     }
 

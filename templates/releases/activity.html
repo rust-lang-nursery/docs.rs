@@ -18,9 +18,9 @@
     <link rel="stylesheet" href="/-/static/chartjs/chart.min.css">
 {%- endblock -%}
 {%- block javascript -%}
-    <script src="/-/static/chartjs/chart.min.js" type="text/javascript"></script>
+    <script nonce="{{ csp_nonce }}" src="/-/static/chartjs/chart.min.js" type="text/javascript"></script>
 
-    <script type="text/javascript">
+    <script nonce="{{ csp_nonce }}" type="text/javascript">
         // We're including the CSS file manually to avoid issues with the CSP.
         Chart.platform.disableCSSInjection = true;
 

@@ -51,6 +51,9 @@ pub struct Config {
     // for the remote archives?
     pub(crate) local_archive_cache_path: PathBuf,
 
+    // Content Security Policy
+    pub(crate) csp_report_only: bool,
+
     // Build params
     pub(crate) build_attempts: u16,
     pub(crate) rustwide_workspace: PathBuf,
@@ -99,6 +102,8 @@ impl Config {
             registry_gc_interval: env("DOCSRS_REGISTRY_GC_INTERVAL", 60 * 60)?,
 
             random_crate_search_view_size: env("DOCSRS_RANDOM_CRATE_SEARCH_VIEW_SIZE", 500)?,
+
+            csp_report_only: env("DOCSRS_CSP_REPORT_ONLY", false)?,
 
             rustwide_workspace: env("CRATESFYI_RUSTWIDE_WORKSPACE", PathBuf::from(".workspace"))?,
             local_archive_cache_path: env(

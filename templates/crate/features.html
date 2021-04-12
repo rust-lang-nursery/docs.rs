@@ -29,18 +29,18 @@
                         {%- if features -%}
                             {%- for feature in features -%}
                                 <li class="pure-menu-item">
-                                    <a href="#{{ feature.name }}" class="pure-menu-link" style="text-align:center;">
+                                    <a href="#{{ feature.name }}" class="pure-menu-link text-center">
                                         {{ feature.name }}
                                     </a>
                                 </li>
                             {%- endfor -%}
                         {%- elif features is iterable -%}
                             <li class="pure-menu-item">
-                                <span style="font-size: 13px;">This release does not have any feature flags.</span>
+                                <span class="documented-info">This release does not have any feature flags.</span>
                             </li>
                         {%- else -%}
                             <li class="pure-menu-item">
-                                <span style="font-size: 13px;">Feature flags data are not available for this release.</span>
+                                <span class="documented-info">Feature flags data are not available for this release.</span>
                             </li>
                         {%- endif -%}
                     </ul>

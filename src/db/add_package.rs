@@ -14,7 +14,6 @@ use crate::{
 };
 use log::{debug, info};
 use postgres::Client;
-use regex::Regex;
 use serde_json::Value;
 use slug::slugify;
 
@@ -54,7 +53,7 @@ pub(crate) fn add_package_into_database(
             dependencies, target_name, yanked, build_status,
             rustdoc_status, test_status, license, repository_url,
             homepage_url, description, description_long, readme,
-            authors, keywords, have_examples, downloads, files,
+            keywords, have_examples, downloads, files,
             doc_targets, is_library, doc_rustc_version,
             documentation_url, default_target, features, github_repo, 
             archive_storage
@@ -63,7 +62,6 @@ pub(crate) fn add_package_into_database(
             $1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,
             $10, $11, $12, $13, $14, $15, $16, $17, $18,
             $19, $20, $21, $22, $23, $24, $25, $26, $27, 
-            $28
          )
          ON CONFLICT (crate_id, version) DO UPDATE
             SET release_time = $3,
@@ -79,19 +77,18 @@ pub(crate) fn add_package_into_database(
                 description = $13,
                 description_long = $14,
                 readme = $15,
-                authors = $16,
-                keywords = $17,
-                have_examples = $18,
-                downloads = $19,
-                files = $20,
-                doc_targets = $21,
-                is_library = $22,
-                doc_rustc_version = $23,
-                documentation_url = $24,
-                default_target = $25,
-                features = $26,
-                github_repo = $27,
-                archive_storage = $28
+                keywords = $16,
+                have_examples = $17,
+                downloads = $18,
+                files = $19,
+                doc_targets = $20,
+                is_library = $21,
+                doc_rustc_version = $22,
+                documentation_url = $23,
+                default_target = $24,
+                features = $25,
+                github_repo = $26,
+                archive_storage = $27
          RETURNING id",
         &[
             &crate_id,
@@ -109,7 +106,6 @@ pub(crate) fn add_package_into_database(
             &metadata_pkg.description,
             &rustdoc,
             &readme,
-            &serde_json::to_value(&metadata_pkg.authors)?,
             &serde_json::to_value(&metadata_pkg.keywords)?,
             &has_examples,
             &registry_data.downloads,
@@ -128,7 +124,6 @@ pub(crate) fn add_package_into_database(
     let release_id: i32 = rows[0].get(0);
 
     add_keywords_into_database(conn, &metadata_pkg, release_id)?;
-    add_authors_into_database(conn, &metadata_pkg, release_id)?;
     add_compression_into_database(conn, compression_algorithms.into_iter(), release_id)?;
 
     // Update the crates table with the new release
@@ -344,52 +339,6 @@ fn add_keywords_into_database(
             "INSERT INTO keyword_rels (rid, kid) VALUES ($1, $2)",
             &[&release_id, &keyword_id],
         );
-    }
-
-    Ok(())
-}
-
-/// Adds authors into database
-fn add_authors_into_database(
-    conn: &mut Client,
-    pkg: &MetadataPackage,
-    release_id: i32,
-) -> Result<()> {
-    let author_capture_re = Regex::new("^([^><]+)<*(.*?)>*$").unwrap();
-    for author in &pkg.authors {
-        if let Some(author_captures) = author_capture_re.captures(&author[..]) {
-            let author = author_captures
-                .get(1)
-                .map(|m| m.as_str())
-                .unwrap_or("")
-                .trim();
-            let email = author_captures
-                .get(2)
-                .map(|m| m.as_str())
-                .unwrap_or("")
-                .trim();
-            let slug = slugify(&author);
-
-            let author_id: i32 = {
-                let rows = conn.query("SELECT id FROM authors WHERE slug = $1", &[&slug])?;
-                if !rows.is_empty() {
-                    rows[0].get(0)
-                } else {
-                    conn.query(
-                        "INSERT INTO authors (name, email, slug) VALUES ($1, $2, $3)
-                                     RETURNING id",
-                        &[&author, &email, &slug],
-                    )?[0]
-                        .get(0)
-                }
-            };
-
-            // add relationship
-            let _ = conn.query(
-                "INSERT INTO author_rels (rid, aid) VALUES ($1, $2)",
-                &[&release_id, &author_id],
-            );
-        }
     }
 
     Ok(())

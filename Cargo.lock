@@ -722,6 +722,7 @@ dependencies = [
  "failure",
  "font-awesome-as-a-crate",
  "futures-util",
+ "getrandom 0.2.2",
  "git2",
  "iron",
  "kuchiki",

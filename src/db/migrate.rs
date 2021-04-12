@@ -612,6 +612,7 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<(
             CREATE INDEX releases_github_repo_idx ON releases (github_repo);
             CREATE INDEX github_repos_stars_idx ON github_repos(stars DESC);
             ",
+            // downgrade
             "
             DROP INDEX crates_latest_version_idx;
             DROP INDEX releases_github_repo_idx;
@@ -621,6 +622,34 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<(
         migration!(
             context,
             27,
+            "add archive-storage marker for releases",
+            "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
+            "ALTER TABLE releases DROP COLUMN archive_storage;",
+            "delete the authors and author_rels",
+            // upgrade
+            "
+            DROP TABLE authors, author_rels;
+            ALTER TABLE releases DROP COLUMN authors;
+            ",
+            // downgrade
+            "
+            CREATE TABLE authors (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255),
+                email VARCHAR(255),
+                slug VARCHAR(255) UNIQUE NOT NULL
+            );
+            CREATE TABLE author_rels (
+                rid INT REFERENCES releases(id),
+                aid INT REFERENCES authors(id),
+                UNIQUE(rid, aid)
+            );
+            ALTER TABLE releases ADD COLUMN authors JSON;
+            ",
+        ),
+        migration!(
+            context,
+            28,
             "add archive-storage marker for releases",
             "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
             "ALTER TABLE releases DROP COLUMN archive_storage;",

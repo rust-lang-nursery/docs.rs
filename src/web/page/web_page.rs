@@ -1,5 +1,6 @@
 use super::TemplateData;
 use crate::ctry;
+use crate::web::csp::Csp;
 use iron::{headers::ContentType, response::Response, status::Status, IronResult, Request};
 use serde::Serialize;
 use std::borrow::Cow;
@@ -35,12 +36,29 @@ macro_rules! impl_webpage {
     };
 }
 
+#[derive(Serialize)]
+struct TemplateContext<'a, T> {
+    csp_nonce: &'a str,
+    #[serde(flatten)]
+    page: &'a T,
+}
+
 /// The central trait that rendering pages revolves around, it handles selecting and rendering the template
 pub trait WebPage: Serialize + Sized {
     /// Turn the current instance into a `Response`, ready to be served
     // TODO: We could cache similar pages using the `&Context`
     fn into_response(self, req: &Request) -> IronResult<Response> {
-        let ctx = Context::from_serialize(&self).unwrap();
+        let csp_nonce = req
+            .extensions
+            .get::<Csp>()
+            .expect("missing CSP from the request extensions")
+            .nonce();
+
+        let ctx = Context::from_serialize(&TemplateContext {
+            csp_nonce,
+            page: &self,
+        })
+        .unwrap();
         let rendered = ctry!(
             req,
             req.extensions

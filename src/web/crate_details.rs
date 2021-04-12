@@ -15,9 +15,7 @@ pub struct CrateDetails {
     name: String,
     version: String,
     description: Option<String>,
-    authors: Vec<(String, String)>,
     owners: Vec<(String, String)>,
-    authors_json: Option<Value>,
     dependencies: Option<Value>,
     #[serde(serialize_with = "optional_markdown")]
     readme: Option<String>,
@@ -85,7 +83,6 @@ impl CrateDetails {
                 crates.name,
                 releases.version,
                 releases.description,
-                releases.authors,
                 releases.dependencies,
                 releases.readme,
                 releases.description_long,
@@ -164,9 +161,7 @@ impl CrateDetails {
             name: krate.get("name"),
             version: krate.get("version"),
             description: krate.get("description"),
-            authors: Vec::new(),
             owners: Vec::new(),
-            authors_json: krate.get("authors"),
             dependencies: krate.get("dependencies"),
             readme: krate.get("readme"),
             rustdoc: krate.get("description_long"),
@@ -193,22 +188,6 @@ impl CrateDetails {
             crate_id,
             release_id,
         };
-
-        // get authors
-        let authors = conn
-            .query(
-                "SELECT name, slug
-                 FROM authors
-                 INNER JOIN author_rels ON author_rels.aid = authors.id
-                 WHERE rid = $1",
-                &[&release_id],
-            )
-            .unwrap();
-
-        crate_details.authors = authors
-            .into_iter()
-            .map(|row| (row.get("name"), row.get("slug")))
-            .collect();
 
         // get owners
         let owners = conn

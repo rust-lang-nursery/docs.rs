@@ -17,7 +17,7 @@
 
         <title>{%- block title -%} Docs.rs {%- endblock title -%}</title>
 
-        <script type="text/javascript">{%- include "theme.js" -%}</script>
+        <script nonce="{{ csp_nonce }}">{%- include "theme.js" -%}</script>
         {%- block css -%}{%- endblock css -%}
     </head>
 
@@ -29,11 +29,10 @@
         {%- block header %}{% endblock header -%}
 
         {%- block body -%}{%- endblock body -%}
+
+        <script type="text/javascript" nonce="{{ csp_nonce }}" src="/-/static/menu.js?{{ docsrs_version() | slugify }}"></script>
+        <script type="text/javascript" nonce="{{ csp_nonce }}" src="/-/static/index.js?{{ docsrs_version() | slugify }}"></script>
+
+        {%- block javascript -%}{%- endblock javascript -%}
     </body>
-
-    <script type="text/javascript" src="/-/static/menu.js?{{ docsrs_version() | slugify }}"></script>
-    <script type="text/javascript" src="/-/static/index.js?{{ docsrs_version() | slugify }}"></script>
-
-    {%- block javascript -%}{%- endblock javascript -%}
-
 </html>

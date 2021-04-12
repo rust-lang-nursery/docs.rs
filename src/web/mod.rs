@@ -80,6 +80,7 @@ macro_rules! extension {
 mod build_details;
 mod builds;
 mod crate_details;
+mod csp;
 mod error;
 mod extensions;
 mod features;
@@ -94,6 +95,7 @@ mod statics;
 
 use crate::{impl_webpage, Context};
 use chrono::{DateTime, Utc};
+use csp::CspMiddleware;
 use error::Nope;
 use extensions::InjectExtensions;
 use failure::Error;
@@ -127,6 +129,9 @@ impl CratesfyiHandler {
     fn chain<H: Handler>(inject_extensions: InjectExtensions, base: H) -> Chain {
         let mut chain = Chain::new(base);
         chain.link_before(inject_extensions);
+
+        chain.link_before(CspMiddleware);
+        chain.link_after(CspMiddleware);
 
         chain
     }

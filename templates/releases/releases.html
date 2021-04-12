@@ -83,7 +83,7 @@
 {%- endblock body -%}
 
 {%- block javascript -%}
-    <script type="text/javascript" charset="utf-8">
+    <script nonce="{{ csp_nonce }}" type="text/javascript" charset="utf-8">
         function getKey(ev) {
             if ("key" in ev && typeof ev.key != "undefined") {
                 return ev.key;

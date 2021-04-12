@@ -87,6 +87,12 @@ impl DocBuilder {
                 .map(|r| PackageKind::Registry(r.as_str()))
                 .unwrap_or(PackageKind::CratesIo);
 
+            if let Err(err) = builder.update_toolchain() {
+                log::error!("Updating toolchain failed, locking queue: {}", err);
+                self.lock()?;
+                return Err(err);
+            }
+
             builder.build_package(&krate.name, &krate.version, kind)?;
             Ok(())
         })?;

@@ -50,7 +50,6 @@ fn get_id(conn: &mut Client, name: &str) -> Result<i32, Error> {
 // metaprogramming!
 // WARNING: these must be hard-coded and NEVER user input.
 const METADATA: &[(&str, &str)] = &[
-    ("author_rels", "rid"),
     ("keyword_rels", "rid"),
     ("builds", "rid"),
     ("compression_rels", "release"),
@@ -119,6 +118,7 @@ fn delete_crate_from_database(conn: &mut Client, name: &str, crate_id: i32) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::index::api::CrateOwner;
     use crate::test::{assert_success, wrapper};
     use failure::Error;
     use postgres::Client;
@@ -179,13 +179,12 @@ mod tests {
     #[test]
     fn test_delete_version() {
         wrapper(|env| {
-            fn authors(conn: &mut Client, crate_id: i32) -> Result<Vec<String>, Error> {
+            fn owners(conn: &mut Client, crate_id: i32) -> Result<Vec<String>, Error> {
                 Ok(conn
                     .query(
-                        "SELECT name FROM authors
-                        INNER JOIN author_rels ON authors.id = author_rels.aid
-                        INNER JOIN releases ON author_rels.rid = releases.id
-                    WHERE releases.crate_id = $1",
+                        "SELECT name FROM owners
+                        INNER JOIN owner_rels ON owners.id = owner_rels.oid
+                        WHERE owner_rels.cid = $1",
                         &[&crate_id],
                     )?
                     .into_iter()
@@ -198,16 +197,14 @@ mod tests {
                 .fake_release()
                 .name("a")
                 .version("1.0.0")
-                .author("malicious actor")
-                .create()?;
-            let v2 = env
-                .fake_release()
-                .name("a")
-                .version("2.0.0")
-                .author("Peter Rabbit")
+                .add_owner(CrateOwner {
+                    login: "malicious actor".into(),
+                    avatar: "https://example.org/malicious".into(),
+                    name: "malicious actor".into(),
+                    email: "malicious@example.org".into(),
+                })
                 .create()?;
             assert!(release_exists(&mut db.conn(), v1)?);
-            assert!(release_exists(&mut db.conn(), v2)?);
             let crate_id = db
                 .conn()
                 .query("SELECT crate_id FROM releases WHERE id = $1", &[&v1])?
@@ -216,15 +213,32 @@ mod tests {
                 .unwrap()
                 .get(0);
             assert_eq!(
-                authors(&mut db.conn(), crate_id)?,
-                vec!["malicious actor".to_string(), "Peter Rabbit".to_string()]
+                owners(&mut db.conn(), crate_id)?,
+                vec!["malicious actor".to_string()]
+            );
+
+            let v2 = env
+                .fake_release()
+                .name("a")
+                .version("2.0.0")
+                .add_owner(CrateOwner {
+                    login: "Peter Rabbit".into(),
+                    avatar: "https://example.org/peter".into(),
+                    name: "Peter Rabbit".into(),
+                    email: "peter@example.org".into(),
+                })
+                .create()?;
+            assert!(release_exists(&mut db.conn(), v2)?);
+            assert_eq!(
+                owners(&mut db.conn(), crate_id)?,
+                vec!["Peter Rabbit".to_string()]
             );
 
             delete_version(&mut db.conn(), &*env.storage(), "a", "1.0.0")?;
             assert!(!release_exists(&mut db.conn(), v1)?);
             assert!(release_exists(&mut db.conn(), v2)?);
             assert_eq!(
-                authors(&mut db.conn(), crate_id)?,
+                owners(&mut db.conn(), crate_id)?,
                 vec!["Peter Rabbit".to_string()]
             );
 

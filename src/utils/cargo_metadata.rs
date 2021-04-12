@@ -58,7 +58,6 @@ pub(crate) struct Package {
     pub(crate) targets: Vec<Target>,
     pub(crate) readme: Option<String>,
     pub(crate) keywords: Vec<String>,
-    pub(crate) authors: Vec<String>,
     pub(crate) features: HashMap<String, Vec<String>>,
 }
 

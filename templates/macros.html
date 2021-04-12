@@ -4,17 +4,15 @@
 #}
 {% macro highlight_js(languages) %}
     {# Load the highlight script #}
-    <script src="/-/static/highlightjs/highlight.min.js" type="text/javascript"
-        charset="utf-8"></script>
+    <script nonce="{{ csp_nonce }}" src="/-/static/highlightjs/highlight.min.js" type="text/javascript"></script>
 
     {# Load the script for each provided language #}
     {%- for language in languages -%}
-        <script src="/-/static/highlightjs/languages/{{ language }}.min.js"
-            type="text/javascript" charset="utf-8"></script>
+        <script nonce="{{ csp_nonce }}" src="/-/static/highlightjs/languages/{{ language }}.min.js" type="text/javascript"></script>
     {%- endfor -%}
 
     {# Activate highlighting #}
-    <script type="text/javascript" charset="utf-8">
+    <script nonce="{{ csp_nonce }}" type="text/javascript">
         hljs.initHighlighting();
     </script>
 {% endmacro highlight_js %}
@@ -22,7 +20,7 @@
 {# Makes the appropriate CSS imports for highlighting #}
 {% macro highlight_css() %}
     {# Load the highlighting theme css #}
-    <script>
+    <script nonce="{{ csp_nonce }}" type="text/javascript">
         // Choose which highlight.js theme to load based on the user theme
         var stylesheet;
         switch(document.documentElement.dataset.theme) {

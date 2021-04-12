@@ -17,34 +17,9 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-sweep
 
-      - name: Cache directories
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/bin
-            ~/.cargo/git
-          key: cargo-test-dirs-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-test-dirs-
-      - name: Cache build
-        uses: actions/cache@v2
-        with:
-          path: target
-          key: cargo-test-build-${{ steps.install.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-test-build-${{ steps.install.outputs.rustc_hash }}-
-            cargo-test-build-
-
-      - name: Register artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: sweep
-          args: --stamp
+      - name: restore build & cargo cache
+        uses: Swatinem/rust-cache@v1
 
       - name: Launch postgres and min.io
         run: |
@@ -76,12 +51,6 @@ jobs:
       - name: Clean up the database
         run: docker-compose down --volumes
 
-      - name: Clean unused artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: sweep
-          args: --file
-
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -112,42 +81,11 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-sweep
 
-      - name: Cache directories
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/bin
-            ~/.cargo/git
-          key: cargo-clippy-dirs-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-clippy-dirs-
-      - name: Cache build
-        uses: actions/cache@v2
-        with:
-          path: target
-          key: cargo-clippy-${{ steps.install.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-clippy-${{ steps.install.outputs.rustc_hash }}-
-            cargo-clippy-
-
-      - name: Register artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: sweep
-          args: --stamp
+      - name: restore build & cargo cache
+        uses: Swatinem/rust-cache@v1
 
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --all-targets --workspace --locked -- -D warnings
-
-      - name: Clean unused artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: sweep
-          args: --file

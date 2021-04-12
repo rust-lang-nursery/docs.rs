@@ -59,6 +59,7 @@ string_cache = "0.8.0"
 postgres-types = { version = "0.2", features = ["derive"] }
 zip = "0.5.11"
 bzip2 = "0.4.2"
+getrandom = "0.2.1"
 
 # Async
 tokio = { version = "1.0", features = ["rt-multi-thread"] }

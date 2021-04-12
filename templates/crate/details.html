@@ -31,10 +31,10 @@
                         {%- if details.documented_items and details.total_items -%}
                             {% set percent = details.documented_items * 100 / details.total_items %}
                             <li class="pure-menu-heading">Coverage</li>
-                            <li class="pure-menu-item" style="text-align:center;"><b>{{ percent | round(precision=2) }}%</b><br>
+                            <li class="pure-menu-item text-center"><b>{{ percent | round(precision=2) }}%</b><br>
                                 <span class="documented-info"><b>{{ details.documented_items }}</b> out of <b>{{ details.total_items }}</b> items documented</span>
                                 {%- if details.total_items_needing_examples and details.items_with_examples -%}
-                                    <span style="font-size: 13px;"><b>{{ details.items_with_examples }}</b> out of <b>{{ details.total_items_needing_examples }}</b> items with examples</span>
+                                    <span class="documented-info"><b>{{ details.items_with_examples }}</b> out of <b>{{ details.total_items_needing_examples }}</b> items with examples</span>
                                 {%- endif -%}
                             </li>
                         {%- endif -%}
