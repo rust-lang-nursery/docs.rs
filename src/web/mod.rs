@@ -162,9 +162,9 @@ impl Handler for CratesfyiHandler {
             handle: impl FnOnce() -> IronResult<Response>,
         ) -> IronResult<Response> {
             if e.response.status == Some(status::NotFound) {
-                // the routes are ordered from most specific to least; give precedence to the
-                // original error message.
-                handle().or(Err(e))
+                // the routes are ordered from least specific to most; give precedence to the
+                // new error message.
+                handle()
             } else {
                 Err(e)
             }
@@ -181,11 +181,11 @@ impl Handler for CratesfyiHandler {
         // specific path means that buggy docs from 2018 will have missing CSS (#1181) so until
         // that's fixed, we need to keep the current (buggy) behavior.
         //
-        // It's important that `router_handler` comes first so that local rustdoc files take
-        // precedence over global ones (see #1324).
-        self.router_handler
+        // It's important that `shared_resource_handler` comes first so that global rustdoc files take
+        // precedence over local ones (see #1327).
+        self.shared_resource_handler
             .handle(req)
-            .or_else(|e| if_404(e, || self.shared_resource_handler.handle(req)))
+            .or_else(|e| if_404(e, || self.router_handler.handle(req)))
             .or_else(|e| {
                 let err = if let Some(err) = e.error.downcast_ref::<error::Nope>() {
                     *err

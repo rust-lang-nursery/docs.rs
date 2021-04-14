@@ -622,9 +622,6 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<(
         migration!(
             context,
             27,
-            "add archive-storage marker for releases",
-            "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
-            "ALTER TABLE releases DROP COLUMN archive_storage;",
             "delete the authors and author_rels",
             // upgrade
             "
