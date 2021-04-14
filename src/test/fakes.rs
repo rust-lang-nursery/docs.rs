@@ -2,7 +2,8 @@ use super::TestDatabase;
 use crate::docbuilder::{BuildResult, DocCoverage};
 use crate::index::api::{CrateData, CrateOwner, ReleaseData};
 use crate::storage::Storage;
-use crate::utils::{Dependency, MetadataPackage, Target};
+use crate::utils::{MetadataPackage, PackageExt};
+use cargo_metadata::PackageId;
 use chrono::{DateTime, Utc};
 use failure::Error;
 use postgres::Client;
@@ -45,35 +46,35 @@ impl<'a> FakeRelease<'a> {
         FakeRelease {
             db,
             storage,
-            package: MetadataPackage {
-                id: "fake-package-id".into(),
-                name: "fake-package".into(),
-                version: "1.0.0".into(),
-                license: Some("MIT".into()),
-                repository: Some("https://git.example.com".into()),
-                homepage: Some("https://www.example.com".into()),
-                description: Some("Fake package".into()),
-                documentation: Some("https://docs.example.com".into()),
-                dependencies: vec![Dependency {
-                    name: "fake-dependency".into(),
-                    req: "^1.0.0".into(),
-                    kind: None,
-                    rename: None,
-                    optional: false,
+            package: serde_json::from_value(serde_json::json!({
+                "id": "fake-package-id",
+                "name": "fake-package",
+                "version": "1.0.0",
+                "license": "MIT",
+                "repository": "https://git.example.com",
+                "homepage": "https://www.example.com",
+                "description": "Fake package",
+                "documentation": "https://docs.example.com",
+                "dependencies": [{
+                    "name": "fake-dependency",
+                    "req": "^1.0.0",
+                    "kind": null,
+                    "rename": null,
+                    "optional": false
                 }],
-                targets: vec![Target::dummy_lib("fake_package".into(), None)],
-                readme: None,
-                keywords: vec!["fake".into(), "package".into()],
-                features: [
-                    ("default".into(), vec!["feature1".into(), "feature3".into()]),
-                    ("feature1".into(), Vec::new()),
-                    ("feature2".into(), vec!["feature1".into()]),
-                    ("feature3".into(), Vec::new()),
-                ]
-                .iter()
-                .cloned()
-                .collect::<HashMap<String, Vec<String>>>(),
-            },
+                "targets": [{
+                    "name": "fake_package"
+                }],
+                "readme": null,
+                "keywords": ["fake", "package"],
+                "features": {
+                    "default": ["feature1", "feature3"],
+                    "feature1": [],
+                    "feature2": ["feature1"],
+                    "feature3": []
+                }
+            }))
+            .unwrap(),
             builds: vec![],
             source_files: Vec::new(),
             rustdoc_files: Vec::new(),
@@ -110,13 +111,15 @@ impl<'a> FakeRelease<'a> {
 
     pub(crate) fn name(mut self, new: &str) -> Self {
         self.package.name = new.into();
-        self.package.id = format!("{}-id", new);
+        self.package.id = PackageId {
+            repr: format!("{}-id", new),
+        };
         self.package.targets[0].name = new.into();
         self
     }
 
     pub(crate) fn version(mut self, new: &str) -> Self {
-        self.package.version = new.into();
+        self.package.version = cargo_metadata::Version::parse(new).expect("invalid semver");
         self
     }
 
@@ -191,7 +194,11 @@ impl<'a> FakeRelease<'a> {
     pub(crate) fn add_platform<S: Into<String>>(mut self, platform: S) -> Self {
         let platform = platform.into();
         let name = self.package.targets[0].name.clone();
-        let target = Target::dummy_lib(name, Some(platform.clone()));
+        let target = serde_json::from_value(serde_json::json!({
+            "name": name,
+            "src_path": platform.clone()
+        }))
+        .unwrap();
         self.package.targets.push(target);
         self.doc_targets.push(platform);
         self
@@ -256,10 +263,10 @@ impl<'a> FakeRelease<'a> {
             }
         }
 
-        let upload_files = |prefix: &str, files: &[(&str, &[u8])], target: Option<&str>| {
+        let upload_files = |prefix: &str, files: &[(&str, &[u8])], target: Option<&Path>| {
             let mut path_prefix = tempdir.path().join(prefix);
             if let Some(target) = target {
-                path_prefix.push(target);
+                path_prefix.push(target.to_owned());
             }
             fs::create_dir(&path_prefix)?;
 
@@ -278,7 +285,7 @@ impl<'a> FakeRelease<'a> {
                 prefix,
                 package.name,
                 package.version,
-                target.unwrap_or("")
+                target.unwrap_or(Path::new("")).display()
             );
             log::debug!("adding directory {} from {}", prefix, path_prefix.display());
             crate::db::add_path_into_database(&storage, &prefix, path_prefix)
@@ -304,9 +311,9 @@ impl<'a> FakeRelease<'a> {
             log::debug!("added rustdoc files {}", rustdoc_meta);
 
             for target in &package.targets[1..] {
-                let platform = target.src_path.as_ref().unwrap();
+                let platform = &target.src_path;
                 upload_files("rustdoc", &rustdoc_files, Some(platform))?;
-                log::debug!("added platform files for {}", platform);
+                log::debug!("added platform files for {}", platform.display());
             }
         }
 
