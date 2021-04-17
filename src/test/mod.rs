@@ -239,6 +239,15 @@ impl TestEnvironment {
         })
     }
 
+    pub(crate) fn override_frontend(&self, init: impl FnOnce(&mut TestFrontend)) -> &TestFrontend {
+        let mut frontend = TestFrontend::new(&*self);
+        init(&mut frontend);
+        if self.frontend.set(frontend).is_err() {
+            panic!("cannot call override_frontend after frontend is initialized");
+        }
+        self.frontend.get().unwrap()
+    }
+
     pub(crate) fn frontend(&self) -> &TestFrontend {
         self.frontend.get_or_init(|| TestFrontend::new(&*self))
     }
@@ -365,7 +374,7 @@ impl Drop for TestDatabase {
 
 pub(crate) struct TestFrontend {
     server: Server,
-    client: Client,
+    pub(crate) client: Client,
 }
 
 impl TestFrontend {
@@ -377,12 +386,14 @@ impl TestFrontend {
         }
     }
 
-    fn build_request(&self, method: Method, url: &str) -> RequestBuilder {
-        self.client
-            .request(method, &format!("http://{}{}", self.server.addr(), url))
+    fn build_request(&self, method: Method, mut url: String) -> RequestBuilder {
+        if url.is_empty() || url.starts_with('/') {
+            url = format!("http://{}{}", self.server.addr(), url);
+        }
+        self.client.request(method, url)
     }
 
     pub(crate) fn get(&self, url: &str) -> RequestBuilder {
-        self.build_request(Method::GET, url)
+        self.build_request(Method::GET, url.to_string())
     }
 }
