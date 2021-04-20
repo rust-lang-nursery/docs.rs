@@ -6,7 +6,9 @@ use crate::db::{
 use crate::docbuilder::{crates::crates_from_path, Limits};
 use crate::error::Result;
 use crate::index::api::ReleaseData;
-use crate::utils::{copy_dir_all, parse_rustc_version, CargoMetadata, GithubUpdater};
+use crate::repositories::RepositoryStatsUpdater;
+use crate::storage::CompressionAlgorithms;
+use crate::utils::{copy_dir_all, parse_rustc_version, CargoMetadata};
 use crate::{db::blacklist::is_blacklisted, utils::MetadataPackage};
 use crate::{Config, Context, Index, Metrics, Storage};
 use docsrs_metadata::{Metadata, DEFAULT_TARGETS, HOST_TARGET};
@@ -40,6 +42,7 @@ pub struct RustwideBuilder {
     metrics: Arc<Metrics>,
     index: Arc<Index>,
     rustc_version: String,
+    repository_stats_updater: Arc<RepositoryStatsUpdater>,
     skip_build_if_exists: bool,
 }
 
@@ -70,6 +73,7 @@ impl RustwideBuilder {
             metrics: context.metrics()?,
             index: context.index()?,
             rustc_version: String::new(),
+            repository_stats_updater: context.repository_stats_updater()?,
             skip_build_if_exists: false,
         })
     }
@@ -368,7 +372,7 @@ impl RustwideBuilder {
                 };
 
                 let cargo_metadata = res.cargo_metadata.root();
-                let github_repo = self.get_github_repo(&mut conn, cargo_metadata)?;
+                let repository = self.get_repo(cargo_metadata)?;
 
                 let release_id = add_package_into_database(
                     &mut conn,
@@ -382,7 +386,7 @@ impl RustwideBuilder {
                     has_docs,
                     has_examples,
                     algs,
-                    github_repo,
+                    repository,
                     true,
                 )?;
 
@@ -615,7 +619,7 @@ impl RustwideBuilder {
         // this is allowing us to host documents in the root of the crate documentation directory.
         // for example winapi will be available in docs.rs/winapi/$version/winapi/ for it's
         // default target: x86_64-pc-windows-msvc. But since it will be built under
-        // cratesfyi/x86_64-pc-windows-msvc we still need target in this function.
+        // target/x86_64-pc-windows-msvc we still need target in this function.
         if !is_default_target {
             dest = dest.join(target);
         }
@@ -641,32 +645,8 @@ impl RustwideBuilder {
         }
     }
 
-    fn get_github_repo(
-        &self,
-        conn: &mut Client,
-        metadata: &MetadataPackage,
-    ) -> Result<Option<String>> {
-        let updater = match GithubUpdater::new(self.config.clone(), self.db.clone())? {
-            Some(updater) => updater,
-            None => {
-                warn!("did not collect GitHub stats as no token was provided");
-                return Ok(None);
-            }
-        };
-        let repo = match &metadata.repository {
-            Some(url) => url,
-            None => {
-                debug!("did not collect GitHub stats as no repository URL was present");
-                return Ok(None);
-            }
-        };
-        match updater.load_repository(conn, repo) {
-            Ok(repo) => Ok(repo),
-            Err(err) => {
-                warn!("failed to collect GitHub stats: {}", err);
-                Ok(None)
-            }
-        }
+    fn get_repo(&self, metadata: &MetadataPackage) -> Result<Option<i32>> {
+        self.repository_stats_updater.load_repository(metadata)
     }
 }
 

@@ -31,7 +31,7 @@ impl DocBuilder {
     }
 
     fn lock_path(&self) -> PathBuf {
-        self.config.prefix.join("cratesfyi.lock")
+        self.config.prefix.join("docsrs.lock")
     }
 
     /// Creates a lock file. Daemon will check this lock file and stop operating if its exists.

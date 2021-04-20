@@ -56,19 +56,16 @@ mod tests {
         wrapper(|env| {
             let db = env.db();
 
-            set_crate_priority(&mut db.conn(), "cratesfyi-%", -100)?;
+            set_crate_priority(&mut db.conn(), "docsrs-%", -100)?;
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-database")?, -100);
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-")?, -100);
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-s3")?, -100);
             assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi-database")?,
-                -100
-            );
-            assert_eq!(get_crate_priority(&mut db.conn(), "cratesfyi-")?, -100);
-            assert_eq!(get_crate_priority(&mut db.conn(), "cratesfyi-s3")?, -100);
-            assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi-webserver")?,
+                get_crate_priority(&mut db.conn(), "docsrs-webserver")?,
                 -100
             );
             assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi")?,
+                get_crate_priority(&mut db.conn(), "docsrs")?,
                 DEFAULT_PRIORITY
             );
 
@@ -96,15 +93,15 @@ mod tests {
         wrapper(|env| {
             let db = env.db();
 
-            set_crate_priority(&mut db.conn(), "cratesfyi-%", -100)?;
-            assert_eq!(get_crate_priority(&mut db.conn(), "cratesfyi-")?, -100);
+            set_crate_priority(&mut db.conn(), "docsrs-%", -100)?;
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-")?, -100);
 
             assert_eq!(
-                remove_crate_priority(&mut db.conn(), "cratesfyi-%")?,
+                remove_crate_priority(&mut db.conn(), "docsrs-%")?,
                 Some(-100)
             );
             assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi-")?,
+                get_crate_priority(&mut db.conn(), "docsrs-")?,
                 DEFAULT_PRIORITY
             );
 
@@ -117,16 +114,13 @@ mod tests {
         wrapper(|env| {
             let db = env.db();
 
-            set_crate_priority(&mut db.conn(), "cratesfyi-%", -100)?;
+            set_crate_priority(&mut db.conn(), "docsrs-%", -100)?;
 
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-database")?, -100);
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-")?, -100);
+            assert_eq!(get_crate_priority(&mut db.conn(), "docsrs-s3")?, -100);
             assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi-database")?,
-                -100
-            );
-            assert_eq!(get_crate_priority(&mut db.conn(), "cratesfyi-")?, -100);
-            assert_eq!(get_crate_priority(&mut db.conn(), "cratesfyi-s3")?, -100);
-            assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi-webserver")?,
+                get_crate_priority(&mut db.conn(), "docsrs-webserver")?,
                 -100
             );
             assert_eq!(
@@ -144,7 +138,7 @@ mod tests {
             let db = env.db();
 
             assert_eq!(
-                get_crate_priority(&mut db.conn(), "cratesfyi")?,
+                get_crate_priority(&mut db.conn(), "docsrs")?,
                 DEFAULT_PRIORITY
             );
             assert_eq!(get_crate_priority(&mut db.conn(), "rcc")?, DEFAULT_PRIORITY);

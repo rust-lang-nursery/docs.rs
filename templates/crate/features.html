@@ -40,7 +40,7 @@
                             </li>
                         {%- else -%}
                             <li class="pure-menu-item">
-                                <span class="documented-info">Feature flags data are not available for this release.</span>
+                                <span class="documented-info">Feature flags are not available for this release because it was built before features were collected by docs.rs.</span>
                             </li>
                         {%- endif -%}
                     </ul>
@@ -68,7 +68,7 @@
                 {%- elif features is iterable  -%}
                     <p data-id="empty-features">This release does not have any feature flags.</p>
                 {%- else -%}
-                    <p data-id="null-features">Feature flags data are not available for this release.</p>
+                    <p data-id="null-features">Feature flags are not available for this release because it was built before features were collected by docs.rs.</p>
                 {%- endif -%}
             </div>
         </div>

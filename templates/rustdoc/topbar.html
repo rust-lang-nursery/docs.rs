@@ -58,16 +58,8 @@ extra whitespace unremovable, need to use html tags unaffacted by whitespace T_T
                                 </li>
                             {%- endif -%}
 
-                            {# If the crate is hosted on GitHub, show some stats #}
-                            {%- if krate.github_metadata -%}
-                                <li class="pure-menu-item">
-                                    <a href="{{ krate.repository_url }}" class="pure-menu-link">
-                                        {{ "code-branch" | fas(fw=true) }} Repository
-                                    </a>
-                                </li>
-
-                            {# If all the crate has is a repo url, show it #}
-                            {%- elif krate.repository_url -%}
+                            {# If a the crate has a repo url, show it #}
+                            {%- if krate.repository_url -%}
                                 <li class="pure-menu-item">
                                     <a href="{{ krate.repository_url }}" class="pure-menu-link">
                                         {{ "code-branch" | fas(fw=true) }} Repository

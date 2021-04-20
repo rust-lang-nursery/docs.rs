@@ -19,7 +19,7 @@ body.blur {
     }
 
     > div.nav-container > *,
-    > div.cratesfyi-package-container > *,
+    > div.docsrs-package-container > *,
     > div.rustdoc > :not(#help) {
         filter: blur(8px);
         -webkit-filter: blur(8px);
@@ -30,7 +30,6 @@ body.blur {
 // rustdoc overrides
 div.rustdoc {
     $padding-x: 15px;
-    font-family: $font-family-serif;
     padding: 10px $padding-x 20px;
     position: relative;
 

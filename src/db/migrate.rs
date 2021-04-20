@@ -1,6 +1,5 @@
 //! Database migrations
 
-use crate::error::Result as CratesfyiResult;
 use log::info;
 use postgres::{Client, Error as PostgresError, Transaction};
 use schemamama::{Migration, Migrator, Version};
@@ -50,7 +49,7 @@ macro_rules! migration {
     }};
 }
 
-pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<()> {
+pub fn migrate(version: Option<Version>, conn: &mut Client) -> crate::error::Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS database_versions (version BIGINT PRIMARY KEY);",
         &[],
@@ -647,7 +646,98 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> CratesfyiResult<(
         migration!(
             context,
             28,
-            "add archive-storage marker for releases",
+            // description
+            "Add gitlab handling: creation of the new repositories table which replaces and extend \
+             github_repos",
+            // upgrade query
+            "
+                CREATE TABLE repositories (
+                    id SERIAL PRIMARY KEY,
+                    host VARCHAR NOT NULL,
+                    host_id VARCHAR NOT NULL,
+                    name VARCHAR NOT NULL,
+                    description VARCHAR,
+                    last_commit TIMESTAMPTZ,
+                    stars INT NOT NULL,
+                    forks INT NOT NULL,
+                    issues INT NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    UNIQUE (host, host_id)
+                );
+
+                ALTER TABLE releases ADD COLUMN repository_id INTEGER
+                    REFERENCES repositories(id) ON DELETE SET NULL;
+
+                INSERT INTO repositories(host, host_id, name, description, last_commit, stars, forks, issues, updated_at)
+                    SELECT 'github.com', id, name, description, last_commit, stars, forks, issues, updated_at
+                    FROM github_repos;
+
+                UPDATE releases
+                    SET repository_id = repositories.id
+                FROM repositories
+                WHERE releases.github_repo IS NOT NULL AND repositories.host_id = releases.github_repo;
+
+                DROP INDEX releases_github_repo_idx;
+                DROP INDEX github_repos_stars_idx;
+
+                CREATE INDEX releases_repo_idx ON releases(repository_id);
+                CREATE INDEX repos_stars_idx ON repositories(stars DESC);
+
+                ALTER TABLE releases
+                    DROP COLUMN github_repo;
+
+                DROP TABLE github_repos;
+            ",
+            // downgrade query
+            "
+                CREATE TABLE github_repos (
+                    id VARCHAR PRIMARY KEY NOT NULL,
+                    name VARCHAR NOT NULL,
+                    description VARCHAR,
+                    last_commit TIMESTAMPTZ,
+                    stars INT NOT NULL,
+                    forks INT NOT NULL,
+                    issues INT NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL
+                );
+
+                ALTER TABLE releases ADD COLUMN github_repo VARCHAR
+                    REFERENCES github_repos(id) ON DELETE SET NULL;
+
+                INSERT INTO github_repos(id, name, description, last_commit, stars, forks, issues, updated_at)
+                    SELECT host_id, name, description, last_commit, stars, forks, issues, updated_at
+                    FROM repositories WHERE repositories.host = 'github.com';
+
+                UPDATE releases
+                    SET github_repo = (
+                        SELECT host_id
+                        FROM repositories
+                        WHERE
+                            repositories.host = 'github.com' AND
+                            repositories.id = releases.repository_id
+                    )
+                WHERE
+                    repository_id IS NOT NULL;
+
+                DROP INDEX releases_repo_idx;
+                DROP INDEX repos_stars_idx;
+
+                CREATE INDEX releases_github_repo_idx ON releases (github_repo);
+                CREATE INDEX github_repos_stars_idx ON github_repos(stars DESC);
+
+                ALTER TABLE releases
+                    DROP COLUMN repository_id;
+
+                DROP TABLE repositories;
+            ",
+        ),
+        migration!(
+            context, 29, "Rename cratesfyi_version to docsrs_version",
+            "ALTER TABLE builds RENAME COLUMN cratesfyi_version TO docsrs_version",
+            "ALTER TABLE builds RENAME COLUMN docsrs_version TO cratesfyi_version",
+        ),
+        migration!(
+            context, 30, "add archive-storage marker for releases",
             "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
             "ALTER TABLE releases DROP COLUMN archive_storage;",
         ),

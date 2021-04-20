@@ -2,10 +2,7 @@
 //!
 //! This daemon will start web server, track new packages and build them
 
-use crate::{
-    utils::{queue_builder, GithubUpdater},
-    Context, DocBuilder, RustwideBuilder,
-};
+use crate::{utils::queue_builder, Context, DocBuilder, RustwideBuilder};
 use failure::Error;
 use log::{debug, error, info};
 use std::thread;
@@ -66,29 +63,28 @@ pub fn start_daemon(context: &dyn Context, enable_registry_watcher: bool) -> Res
     // build new crates every minute
     let pool = context.pool()?;
     let build_queue = context.build_queue()?;
-    let cloned_config = config.clone();
     let rustwide_builder = RustwideBuilder::init(context)?;
     thread::Builder::new()
         .name("build queue reader".to_string())
         .spawn(move || {
-            let doc_builder =
-                DocBuilder::new(cloned_config.clone(), pool.clone(), build_queue.clone());
+            let doc_builder = DocBuilder::new(config.clone(), pool.clone(), build_queue.clone());
             queue_builder(doc_builder, rustwide_builder, build_queue).unwrap();
         })
         .unwrap();
 
-    if let Some(github_updater) = GithubUpdater::new(config, context.pool()?)? {
-        cron(
-            "github stats updater",
-            Duration::from_secs(60 * 60),
-            move || {
-                github_updater.update_all_crates()?;
-                Ok(())
-            },
-        )?;
-    } else {
-        log::warn!("GitHub stats updater not started as no token was provided");
-    }
+    // This call will still skip github repositories updates and continue if no token is provided
+    // (gitlab doesn't require to have a token). The only time this can return an error is when
+    // creating a pool or if config fails, which shouldn't happen here because this is run right at
+    // startup.
+    let updater = context.repository_stats_updater()?;
+    cron(
+        "repositories stats updater",
+        Duration::from_secs(60 * 60),
+        move || {
+            updater.update_all_crates()?;
+            Ok(())
+        },
+    )?;
 
     // Never returns; `server` blocks indefinitely when dropped
     // NOTE: if a failure occurred earlier in `start_daemon`, the server will _not_ be joined -
@@ -98,7 +94,7 @@ pub fn start_daemon(context: &dyn Context, enable_registry_watcher: bool) -> Res
         .map_err(|_| failure::err_msg("web server panicked"))
 }
 
-fn cron<F>(name: &'static str, interval: Duration, exec: F) -> Result<(), Error>
+pub(crate) fn cron<F>(name: &'static str, interval: Duration, exec: F) -> Result<(), Error>
 where
     F: Fn() -> Result<(), Error> + Send + 'static,
 {

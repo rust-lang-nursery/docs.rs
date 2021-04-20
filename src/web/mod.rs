@@ -16,7 +16,7 @@ macro_rules! ctry {
                 let request: &::iron::Request = $req;
 
                 ::log::error!(
-                    "called ctry!() on an `Err` value: {}\nnote: while attempting to fetch the route {:?}\n{:?}",
+                    "called ctry!() on an `Err` value: {:?}\nnote: while attempting to fetch the route {:?}\n{:?}",
                     error,
                     request.url,
                     ::backtrace::Backtrace::new(),
@@ -119,13 +119,13 @@ const STATIC_FILE_CACHE_DURATION: u64 = 60 * 60 * 24 * 30 * 12; // 12 months
 
 const DEFAULT_BIND: &str = "0.0.0.0:3000";
 
-struct CratesfyiHandler {
+struct MainHandler {
     shared_resource_handler: Box<dyn Handler>,
     router_handler: Box<dyn Handler>,
     inject_extensions: InjectExtensions,
 }
 
-impl CratesfyiHandler {
+impl MainHandler {
     fn chain<H: Handler>(inject_extensions: InjectExtensions, base: H) -> Chain {
         let mut chain = Chain::new(base);
         chain.link_before(inject_extensions);
@@ -136,10 +136,7 @@ impl CratesfyiHandler {
         chain
     }
 
-    fn new(
-        template_data: Arc<TemplateData>,
-        context: &dyn Context,
-    ) -> Result<CratesfyiHandler, Error> {
+    fn new(template_data: Arc<TemplateData>, context: &dyn Context) -> Result<MainHandler, Error> {
         let inject_extensions = InjectExtensions::new(context, template_data)?;
 
         let routes = routes::build_routes();
@@ -147,7 +144,7 @@ impl CratesfyiHandler {
             Self::chain(inject_extensions.clone(), rustdoc::SharedResourceHandler);
         let router_chain = Self::chain(inject_extensions.clone(), routes.iron_router());
 
-        Ok(CratesfyiHandler {
+        Ok(MainHandler {
             shared_resource_handler: Box::new(shared_resources),
             router_handler: Box::new(router_chain),
             inject_extensions,
@@ -155,7 +152,7 @@ impl CratesfyiHandler {
     }
 }
 
-impl Handler for CratesfyiHandler {
+impl Handler for MainHandler {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         fn if_404(
             e: IronError,
@@ -438,8 +435,7 @@ impl Server {
         template_data: Arc<TemplateData>,
         context: &dyn Context,
     ) -> Result<Self, Error> {
-        let cratesfyi = CratesfyiHandler::new(template_data, context)?;
-        let mut iron = Iron::new(cratesfyi);
+        let mut iron = Iron::new(MainHandler::new(template_data, context)?);
         if cfg!(test) {
             iron.threads = 1;
         }

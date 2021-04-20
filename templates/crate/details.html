@@ -62,19 +62,19 @@
                         {%- if details.repository_url -%}
                             <li class="pure-menu-item">
                                 <a href="{{ details.repository_url }}" class="pure-menu-link">
-                                    {# If the repo link is for github, show some github stats #}
-                                    {# TODO: add support for hosts besides github (#35) #}
-                                    {%- if details.github_metadata -%}
-                                        {{ "github" | fab(fw=true) }}
-                                        {% if details.github_metadata.name %}
-                                            {{details.github_metadata.name}}
+                                    {# If the repo link is for github or gitlab, show some stats #}
+                                    {# TODO: add support for hosts besides github and gitlab (#35) #}
+                                    {%- if details.repository_metadata -%}
+                                        {{ details.repository_metadata.icon | fab(fw=true) }}
+                                        {% if details.repository_metadata.name %}
+                                            {{details.repository_metadata.name}}
                                         {% else %}
                                             Repository
                                         {% endif %}
                                         <br>
-                                        {{ "star" | fas(fw=true, extra="left-margin") }} {{ details.github_metadata.stars }}
-                                        {{ "code-branch" | fas(fw=true) }} {{ details.github_metadata.forks }}
-                                        {{ "exclamation-circle" | fas(fw=true) }} {{ details.github_metadata.issues }}
+                                        {{ "star" | fas(fw=true, extra="left-margin") }} {{ details.repository_metadata.stars }}
+                                        {{ "code-branch" | fas(fw=true) }} {{ details.repository_metadata.forks }}
+                                        {{ "exclamation-circle" | fas(fw=true) }} {{ details.repository_metadata.issues }}
 
                                     {# If the repo link is unknown, just show a normal link #}
                                     {%- else -%}

@@ -104,6 +104,7 @@ procfs = "0.7"
 criterion = "0.3"
 kuchiki = "0.8"
 rand = "0.8"
+mockito = "0.29"
 
 [build-dependencies]
 time = "0.1"

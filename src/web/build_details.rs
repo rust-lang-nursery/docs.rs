@@ -44,7 +44,7 @@ pub fn build_details_handler(req: &mut Request) -> IronResult<Response> {
         conn.query_opt(
             "SELECT
                 builds.rustc_version,
-                builds.cratesfyi_version,
+                builds.docsrs_version,
                 builds.build_status,
                 builds.build_time,
                 builds.output,
@@ -69,7 +69,7 @@ pub fn build_details_handler(req: &mut Request) -> IronResult<Response> {
         BuildDetails {
             id,
             rustc_version: row.get("rustc_version"),
-            docsrs_version: row.get("cratesfyi_version"),
+            docsrs_version: row.get("docsrs_version"),
             build_status: row.get("build_status"),
             build_time: row.get("build_time"),
             output,

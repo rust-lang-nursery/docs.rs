@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use docs_rs::db::{self, add_path_into_database, Pool, PoolClient};
+use docs_rs::repositories::RepositoryStatsUpdater;
 use docs_rs::utils::{remove_crate_priority, set_crate_priority};
 use docs_rs::{
     BuildQueue, Config, Context, DocBuilder, Index, Metrics, PackageKind, RustwideBuilder, Server,
@@ -78,7 +79,7 @@ enum CommandLine {
         reload_templates: bool,
     },
 
-    /// Starts cratesfyi daemon
+    /// Starts the daemon
     Daemon {
         /// Deprecated. Run the server in the foreground instead of detaching a child
         #[structopt(name = "FOREGROUND", short = "f", long = "foreground")]
@@ -277,10 +278,10 @@ enum BuildSubcommand {
     /// Adds essential files for the installed version of rustc
     AddEssentialFiles,
 
-    /// Locks cratesfyi daemon to stop building new crates
+    /// Locks the daemon, preventing it from building new crates
     Lock,
 
-    /// Unlocks cratesfyi daemon to continue building new crates
+    /// Unlocks the daemon to continue building new crates
     Unlock,
 }
 
@@ -371,11 +372,11 @@ enum DatabaseSubcommand {
         version: Option<i64>,
     },
 
-    /// Updates github stats for crates.
-    UpdateGithubFields,
+    /// Updates Github/Gitlab stats for crates.
+    UpdateRepositoryFields,
 
-    /// Backfill GitHub stats for crates.
-    BackfillGithubStats,
+    /// Backfill GitHub/Gitlab stats for crates.
+    BackfillRepositoryStats,
 
     /// Updates info for a crate from the registry's API
     UpdateCrateRegistryFields {
@@ -421,16 +422,12 @@ impl DatabaseSubcommand {
                     .context("Failed to run database migrations")?;
             }
 
-            Self::UpdateGithubFields => {
-                docs_rs::utils::GithubUpdater::new(ctx.config()?, ctx.pool()?)?
-                    .ok_or_else(|| failure::format_err!("missing GitHub token"))?
-                    .update_all_crates()?;
+            Self::UpdateRepositoryFields => {
+                ctx.repository_stats_updater()?.update_all_crates()?;
             }
 
-            Self::BackfillGithubStats => {
-                docs_rs::utils::GithubUpdater::new(ctx.config()?, ctx.pool()?)?
-                    .ok_or_else(|| failure::format_err!("missing GitHub token"))?
-                    .backfill_repositories()?;
+            Self::BackfillRepositoryStats => {
+                ctx.repository_stats_updater()?.backfill_repositories()?;
             }
 
             Self::UpdateCrateRegistryFields { name } => {
@@ -535,6 +532,7 @@ struct BinContext {
     pool: OnceCell<Pool>,
     metrics: OnceCell<Arc<Metrics>>,
     index: OnceCell<Arc<Index>>,
+    repository_stats_updater: OnceCell<Arc<RepositoryStatsUpdater>>,
 }
 
 impl BinContext {
@@ -546,6 +544,7 @@ impl BinContext {
             pool: OnceCell::new(),
             metrics: OnceCell::new(),
             index: OnceCell::new(),
+            repository_stats_updater: OnceCell::new(),
         }
     }
 
@@ -614,6 +613,17 @@ impl Context for BinContext {
                         Index::new(config.registry_index_path.clone())
                     }?,
                 ))
+            })?
+            .clone())
+    }
+
+    fn repository_stats_updater(&self) -> Result<Arc<RepositoryStatsUpdater>, Error> {
+        Ok(self
+            .repository_stats_updater
+            .get_or_try_init::<_, Error>(|| {
+                let config = self.config()?;
+                let pool = self.pool()?;
+                Ok(Arc::new(RepositoryStatsUpdater::new(&config, pool)))
             })?
             .clone())
     }

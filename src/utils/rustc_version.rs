@@ -26,7 +26,7 @@ fn test_parse_rustc_version() {
         "20160523-1.10.0-nightly-57ef01513"
     );
     assert_eq!(
-        parse_rustc_version("cratesfyi 0.2.0 (ba9ae23 2016-05-26)").unwrap(),
+        parse_rustc_version("docsrs 0.2.0 (ba9ae23 2016-05-26)").unwrap(),
         "20160526-0.2.0-ba9ae23"
     );
 }

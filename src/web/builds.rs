@@ -80,7 +80,7 @@ pub fn build_list_handler(req: &mut Request) -> IronResult<Response> {
                 releases.target_name,
                 builds.id,
                 builds.rustc_version,
-                builds.cratesfyi_version,
+                builds.docsrs_version,
                 builds.build_status,
                 builds.build_time
              FROM builds
@@ -97,7 +97,7 @@ pub fn build_list_handler(req: &mut Request) -> IronResult<Response> {
         .map(|row| Build {
             id: row.get("id"),
             rustc_version: row.get("rustc_version"),
-            docsrs_version: row.get("cratesfyi_version"),
+            docsrs_version: row.get("docsrs_version"),
             build_status: row.get("build_status"),
             build_time: row.get("build_time"),
         })

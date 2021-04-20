@@ -310,7 +310,7 @@ impl<'a> FakeRelease<'a> {
             }
         }
 
-        let github_repo = match self.github_stats {
+        let repository = match self.github_stats {
             Some(stats) => Some(stats.create(&mut self.db.conn())?),
             None => None,
         };
@@ -336,7 +336,7 @@ impl<'a> FakeRelease<'a> {
             self.has_docs,
             self.has_examples,
             algs,
-            github_repo,
+            repository,
             false, // TODO support fake releases with archive storage
         )?;
         crate::db::update_crate_data_in_database(
@@ -363,19 +363,20 @@ struct FakeGithubStats {
 }
 
 impl FakeGithubStats {
-    fn create(&self, conn: &mut Client) -> Result<String, Error> {
+    fn create(&self, conn: &mut Client) -> Result<i32, Error> {
         let existing_count: i64 = conn
-            .query_one("SELECT COUNT(*) FROM github_repos;", &[])?
+            .query_one("SELECT COUNT(*) FROM repositories;", &[])?
             .get(0);
-        let id = base64::encode(format!("FAKE ID {}", existing_count));
+        let host_id = base64::encode(format!("FAKE ID {}", existing_count));
 
-        conn.execute(
-            "INSERT INTO github_repos (id, name, description, last_commit, stars, forks, issues, updated_at)
-             VALUES ($1, $2, 'Fake description!', NOW(), $3, $4, $5, NOW());",
-            &[&id, &self.repo, &self.stars, &self.forks, &self.issues],
+        let data = conn.query_one(
+            "INSERT INTO repositories (host, host_id, name, description, last_commit, stars, forks, issues, updated_at)
+             VALUES ('github.com', $1, $2, 'Fake description!', NOW(), $3, $4, $5, NOW())
+             RETURNING id;",
+            &[&host_id, &self.repo, &self.stars, &self.forks, &self.issues],
         )?;
 
-        Ok(id)
+        Ok(data.get(0))
     }
 }
 

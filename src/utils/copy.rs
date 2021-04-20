@@ -26,11 +26,11 @@ mod test {
     #[test]
     fn test_copy_doc_dir() {
         let source = tempfile::Builder::new()
-            .prefix("cratesfyi-src")
+            .prefix("docsrs-src")
             .tempdir()
             .unwrap();
         let destination = tempfile::Builder::new()
-            .prefix("cratesfyi-dst")
+            .prefix("docsrs-dst")
             .tempdir()
             .unwrap();
         let doc = source.path().join("doc");

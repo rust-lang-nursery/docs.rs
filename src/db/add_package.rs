@@ -36,7 +36,7 @@ pub(crate) fn add_package_into_database(
     has_docs: bool,
     has_examples: bool,
     compression_algorithms: std::collections::HashSet<CompressionAlgorithm>,
-    github_repo: Option<String>,
+    repository_id: Option<i32>,
     archive_storage: bool,
 ) -> Result<i32> {
     debug!("Adding package into database");
@@ -55,8 +55,8 @@ pub(crate) fn add_package_into_database(
             homepage_url, description, description_long, readme,
             keywords, have_examples, downloads, files,
             doc_targets, is_library, doc_rustc_version,
-            documentation_url, default_target, features, github_repo, 
-            archive_storage
+            documentation_url, default_target, features,
+            repository_id, archive_storage
          )
          VALUES (
             $1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,
@@ -87,7 +87,7 @@ pub(crate) fn add_package_into_database(
                 documentation_url = $23,
                 default_target = $24,
                 features = $25,
-                github_repo = $26,
+                repository_id = $26
                 archive_storage = $27
          RETURNING id",
         &[
@@ -116,7 +116,7 @@ pub(crate) fn add_package_into_database(
             &metadata_pkg.documentation,
             &default_target,
             &features,
-            &github_repo,
+            &repository_id,
             &archive_storage,
         ],
     )?;
@@ -175,7 +175,7 @@ pub(crate) fn add_build_into_database(
 ) -> Result<i32> {
     debug!("Adding build into database");
     let rows = conn.query(
-        "INSERT INTO builds (rid, rustc_version, cratesfyi_version, build_status)
+        "INSERT INTO builds (rid, rustc_version, docsrs_version, build_status)
         VALUES ($1, $2, $3, $4)
         RETURNING id",
         &[

@@ -2,6 +2,7 @@
 
 use crate::{
     db::Pool,
+    repositories::RepositoryStatsUpdater,
     utils,
     web::{
         crate_details::CrateDetails, csp::Csp, error::Nope, file::File, match_version,
@@ -321,11 +322,13 @@ pub fn rustdoc_html_server_handler(req: &mut Request) -> IronResult<Response> {
         }
     };
 
+    let updater = extension!(req, RepositoryStatsUpdater);
+
     rendering_time.step("crate details");
 
     // Get the crate's details from the database
     // NOTE: we know this crate must exist because we just checked it above (or else `match_version` is buggy)
-    let krate = cexpect!(req, CrateDetails::new(&mut conn, &name, &version));
+    let krate = cexpect!(req, CrateDetails::new(&mut conn, &name, &version, &updater));
 
     // if visiting the full path to the default target, remove the target from the path
     // expects a req_path that looks like `[/:target]/.*`
@@ -536,8 +539,9 @@ pub fn target_redirect_handler(req: &mut Request) -> IronResult<Response> {
     let storage = extension!(req, Storage);
     let config = extension!(req, Config);
     let base = redirect_base(req);
+    let updater = extension!(req, RepositoryStatsUpdater);
 
-    let crate_details = match CrateDetails::new(&mut conn, &name, &version) {
+    let crate_details = match CrateDetails::new(&mut conn, &name, &version, &updater) {
         Some(krate) => krate,
         None => return Err(Nope::VersionNotFound.into()),
     };

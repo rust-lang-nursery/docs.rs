@@ -323,7 +323,7 @@ mod test_parsing {
     use std::str::FromStr;
 
     #[test]
-    fn test_cratesfyi_metadata() {
+    fn test_docsrs_metadata() {
         let manifest = r#"
             [package]
             name = "test"

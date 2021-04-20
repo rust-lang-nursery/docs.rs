@@ -3,7 +3,6 @@
 pub(crate) use self::cargo_metadata::{CargoMetadata, Package as MetadataPackage};
 pub(crate) use self::copy::copy_dir_all;
 pub use self::daemon::start_daemon;
-pub use self::github_updater::GithubUpdater;
 pub(crate) use self::html::rewrite_lol;
 pub use self::queue::{get_crate_priority, remove_crate_priority, set_crate_priority};
 pub use self::queue_builder::queue_builder;
@@ -16,8 +15,7 @@ mod cargo_metadata;
 #[cfg(feature = "consistency_check")]
 pub mod consistency;
 mod copy;
-mod daemon;
-mod github_updater;
+pub(crate) mod daemon;
 mod html;
 mod pubsubhubbub;
 mod queue;

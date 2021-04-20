@@ -3,7 +3,10 @@
 use crate::{
     db::Pool,
     impl_webpage,
-    web::{error::Nope, file::File as DbFile, page::WebPage, MetaData},
+    web::{
+        error::Nope, file::File as DbFile, match_version, page::WebPage, redirect_base,
+        MatchSemver, MetaData, Url,
+    },
     Config, Storage,
 };
 use iron::{IronResult, Request, Response};
@@ -160,8 +163,38 @@ impl_webpage! {
 
 pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
     let router = extension!(req, Router);
-    let name = cexpect!(req, router.find("name"));
-    let version = cexpect!(req, router.find("version"));
+    let mut crate_name = cexpect!(req, router.find("name"));
+    let req_version = cexpect!(req, router.find("version"));
+    let pool = extension!(req, Pool);
+    let mut conn = pool.get()?;
+
+    let mut req_path = req.url.path();
+    // remove first elements from path which is /crate/:name/:version/source
+    req_path.drain(0..4);
+
+    let v = match_version(&mut conn, &crate_name, Some(req_version))?;
+    if let Some(new_name) = &v.corrected_name {
+        // `match_version` checked against -/_ typos, so if we have a name here we should
+        // use that instead
+        crate_name = new_name;
+    }
+    let version = match v.version {
+        MatchSemver::Exact((version, _)) => version,
+        MatchSemver::Semver((version, _)) => {
+            let url = ctry!(
+                req,
+                Url::parse(&format!(
+                    "{}/crate/{}/{}/source/{}",
+                    redirect_base(req),
+                    crate_name,
+                    version,
+                    req_path.join("/"),
+                )),
+            );
+
+            return Ok(super::redirect(url));
+        }
+    };
 
     // get path (req_path) for FileList::from_path and actual path for super::file::File::from_path
     let (req_path, file_path) = {
@@ -183,13 +216,11 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         // remove crate name and version from req_path
         let path = req_path
             .join("/")
-            .replace(&format!("{}/{}/", name, version), "");
+            .replace(&format!("{}/{}/", crate_name, version), "");
 
         (path, file_path)
     };
 
-    let pool = extension!(req, Pool);
-    let mut conn = pool.get()?;
     let storage = extension!(req, Storage);
     let config = extension!(req, Config);
 
@@ -254,8 +285,8 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         (None, false)
     };
 
-    let file_list =
-        FileList::from_path(&mut conn, &name, &version, &req_path).ok_or(Nope::NoResults)?;
+    let file_list = FileList::from_path(&mut conn, &crate_name, &version, &req_path)
+        .ok_or(Nope::ResourceNotFound)?;
 
     SourcePage {
         file_list,
@@ -268,7 +299,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::{assert_success, wrapper};
+    use crate::test::*;
 
     #[test]
     fn cargo_ok_not_skipped() {
@@ -283,5 +314,37 @@ mod tests {
             assert_success("/crate/fake/0.1.0/source/", web)?;
             Ok(())
         });
+    }
+
+    #[test]
+    fn directory_not_found() {
+        wrapper(|env| {
+            env.fake_release()
+                .name("mbedtls")
+                .version("0.2.0")
+                .create()?;
+            let web = env.frontend();
+            assert_not_found("/crate/mbedtls/0.2.0/source/test/", web)?;
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn semver_handled() {
+        wrapper(|env| {
+            env.fake_release()
+                .name("mbedtls")
+                .version("0.2.0")
+                .source_file("README.md", b"hello")
+                .create()?;
+            let web = env.frontend();
+            assert_success("/crate/mbedtls/0.2.0/source/", web)?;
+            assert_redirect(
+                "/crate/mbedtls/*/source/",
+                "/crate/mbedtls/0.2.0/source/",
+                web,
+            )?;
+            Ok(())
+        })
     }
 }
