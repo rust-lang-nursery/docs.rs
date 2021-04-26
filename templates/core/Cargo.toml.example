@@ -42,3 +42,8 @@ rustc-args = ["--example-rustc-arg"]
 
 # Additional `RUSTDOCFLAGS` to set (default: [])
 rustdoc-args = ["--example-rustdoc-arg"]
+
+# List of command line arguments for `cargo`.
+#
+# These cannot be a subcommand, they may only be options.
+cargo-args = ["-Z", "build-std"]

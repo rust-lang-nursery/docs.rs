@@ -43,7 +43,7 @@ schemamama = "0.3"
 schemamama_postgres = "0.3"
 systemstat = "0.1.4"
 prometheus = { version = "0.10.0", default-features = false }
-rustwide = "0.12"
+rustwide = "0.13"
 mime_guess = "2"
 dotenv = "0.15"
 zstd = "0.5"

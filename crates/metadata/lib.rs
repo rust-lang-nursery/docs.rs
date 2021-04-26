@@ -129,6 +129,12 @@ pub struct Metadata {
     /// List of command line arguments for `rustdoc`.
     #[serde(default)]
     rustdoc_args: Vec<String>,
+
+    /// List of command line arguments for `cargo`.
+    ///
+    /// These cannot be a subcommand, they may only be options.
+    #[serde(default)]
+    cargo_args: Vec<String>,
 }
 
 /// The targets that should be built for a crate.
@@ -264,6 +270,7 @@ impl Metadata {
         }
 
         cargo_args.extend(additional_args.iter().map(|s| s.to_owned()));
+        cargo_args.extend_from_slice(&self.cargo_args);
         cargo_args.push("--".into());
         cargo_args.extend_from_slice(&self.rustdoc_args);
         cargo_args.extend(rustdoc_args.iter().map(|s| s.to_owned()));
@@ -336,6 +343,7 @@ mod test_parsing {
             targets = [ "x86_64-apple-darwin", "x86_64-pc-windows-msvc" ]
             rustc-args = [ "--example-rustc-arg" ]
             rustdoc-args = [ "--example-rustdoc-arg" ]
+            cargo-args = [ "-Zbuild-std" ]
         "#;
 
         let metadata = Metadata::from_str(manifest).unwrap();
@@ -369,6 +377,9 @@ mod test_parsing {
         assert_eq!(rustdoc_args[0], "--example-rustdoc-arg".to_owned());
         assert_eq!(rustdoc_args[1], "-Z".to_owned());
         assert_eq!(rustdoc_args[2], "unstable-options".to_owned());
+
+        let cargo_args = metadata.cargo_args;
+        assert_eq!(cargo_args.as_slice(), &["-Zbuild-std"]);
     }
 
     #[test]
@@ -675,6 +686,20 @@ mod test_calculations {
             "unstable-options".into(),
             "--config".into(),
             "build.rustflags=[\"--cfg\", \"x\"]".into(),
+            "--".into(),
+        ];
+        assert_eq!(metadata.cargo_args(&[], &[]), expected_args);
+
+        // cargo flags
+        let metadata = Metadata {
+            cargo_args: vec!["-Zbuild-std".into()],
+            ..Metadata::default()
+        };
+        let expected_args = vec![
+            String::from("rustdoc"),
+            "--lib".into(),
+            "-Zrustdoc-map".into(),
+            "-Zbuild-std".into(),
             "--".into(),
         ];
         assert_eq!(metadata.cargo_args(&[], &[]), expected_args);
