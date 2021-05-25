@@ -61,7 +61,7 @@ pub struct Config {
     pub(crate) build_attempts: u16,
     pub(crate) rustwide_workspace: PathBuf,
     pub(crate) inside_docker: bool,
-    pub(crate) local_docker_image: Option<String>,
+    pub(crate) docker_image: Option<String>,
     pub(crate) toolchain: String,
     pub(crate) build_cpu_limit: Option<u32>,
     pub(crate) include_default_targets: bool,
@@ -116,7 +116,8 @@ impl Config {
                 PathBuf::from(".archive_cache"),
             )?,
             inside_docker: env("DOCS_RS_DOCKER", false)?,
-            local_docker_image: maybe_env("DOCS_RS_LOCAL_DOCKER_IMAGE")?,
+            docker_image: maybe_env("DOCS_RS_LOCAL_DOCKER_IMAGE")?
+                .or(maybe_env("DOCSRS_DOCKER_IMAGE")?),
             toolchain: env("CRATESFYI_TOOLCHAIN", "nightly".to_string())?,
             build_cpu_limit: maybe_env("DOCS_RS_BUILD_CPU_LIMIT")?,
             include_default_targets: env("DOCSRS_INCLUDE_DEFAULT_TARGETS", true)?,

@@ -5,7 +5,7 @@
 {%- block body -%}
     {%- set docsrs_repo = "https://github.com/rust-lang/docs.rs" -%}
     <h1>Builds</h1>
-    <div>
+    <div class="about-page">
     <div class="container pure-u-5-6 about">
     <p>
         Docs.rs automatically builds documentation for crates released on <a href="https://crates.io/">crates.io</a>.
@@ -32,11 +32,9 @@
     <p>
         To recognize Docs.rs from <code>build.rs</code> files, you can test for the environment variable <code>DOCS_RS</code>, e.g.:
         {% filter dedent(levels=4) -%}
-        <pre><code class="lang-rust">
-            if let Ok(_) = std::env::var("DOCS_RS") {
+        <pre><code class="lang-rust">if let Ok(_) = std::env::var("DOCS_RS") {
                 // ... your code here ...
-            }
-        </code></pre>
+            }</code></pre>
         {%- endfilter %}
         This approach can be helpful if you need dependencies for building the library, but not for building the documentation.
     </p>
@@ -49,10 +47,8 @@
     <p>
         You can configure how your crate is built by adding <a href="metadata">package metadata</a> to your <code>Cargo.toml</code>, e.g.:
         {% filter dedent -%}
-        <pre><code class="lang-toml">
-            [package.metadata.docs.rs]
-            rustc-args = ["--cfg", "docsrs"]
-        </code></pre>
+        <pre><code class="lang-toml">[package.metadata.docs.rs]
+            rustc-args = ["--cfg", "docsrs"]</code></pre>
         {%- endfilter %}
         Here, the compiler arguments are set so that <code>#[cfg(docsrs)]</code> (not to be confused with <code>#[cfg(doc)]</code>) can be used for conditional compilation.
         This approach is also useful for setting <a href="https://doc.rust-lang.org/cargo/reference/features.html">cargo features</a>.

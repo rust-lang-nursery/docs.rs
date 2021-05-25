@@ -1,0 +1,36 @@
+---
+name: Sandbox Limits Increase Request
+description: My crate build won't complete within the sandbox limits.
+labels: limits-increase
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please note we *won't* enable network access or allow the crate to write in read-only directories, to avoid compromising the security of docs.rs itself.
+  - type: input
+    attributes:
+      label: Crate name
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Build failure link
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Requested RAM limit
+      placeholder: "default: 3 GB"
+  - type: input
+    attributes:
+      label: Requested timeout
+      placeholder: "default: 15 minutes"
+  - type: input
+    attributes:
+      label: Requested number of targets
+      placeholder: "default: 10"
+  - type: textarea
+    attributes:
+      label: Why your crate needs the resource increases
+    validations:
+      required: true

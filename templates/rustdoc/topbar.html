@@ -19,7 +19,7 @@ extra whitespace unremovable, need to use html tags unaffacted by whitespace T_T
                 <ul class="pure-menu-list menu-item-divided">
                     <li class="pure-menu-heading" id="crate-title">
                         {{ krate.name }} {{ krate.version }}
-                        {{ "copy" | far(id="clipboard", aria_label="Copy crate name and version information", fw=true) }}
+                        <span id="clipboard" class="fa-svg fa-svg-fw" title="Copy crate name and version information">{%- include "clipboard.svg" -%}</span>
                     </li>
 
                     <li class="pure-menu-item">

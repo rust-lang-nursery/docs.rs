@@ -29,6 +29,7 @@
         {%- block header %}{% endblock header -%}
 
         {%- block body -%}{%- endblock body -%}
+        {%- include "footer.html" -%}
 
         <script type="text/javascript" nonce="{{ csp_nonce }}" src="/-/static/menu.js?{{ docsrs_version() | slugify }}"></script>
         <script type="text/javascript" nonce="{{ csp_nonce }}" src="/-/static/index.js?{{ docsrs_version() | slugify }}"></script>

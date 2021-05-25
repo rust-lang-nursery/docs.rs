@@ -8,7 +8,7 @@
             ../templates/theme.js when rustdoc in the current window changes the
             theme
         -->
-        <script type="text/javascript">
+        <script nonce="{{ csp_nonce }}" type="text/javascript">
             onstorage = function(ev) {
                 parent.postMessage({
                     storage: {

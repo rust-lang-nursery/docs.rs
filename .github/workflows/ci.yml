@@ -1,15 +1,17 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
 
 env:
   RUST_BACKTRACE: 1
 
 jobs:
-  test:
-    name: Test
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@master
       - id: install
@@ -20,6 +22,37 @@ jobs:
 
       - name: restore build & cargo cache
         uses: Swatinem/rust-cache@v1
+
+      - name: Build
+        run: cargo build --workspace --locked
+
+      - name: compile test binaries
+        run: |
+          cargo test --no-run
+          mkdir ./test-binaries/
+          find ./target \
+            -name "docs_rs*" \
+            -executable -type f \
+            -exec cp {} ./test-binaries/ \;
+
+      - uses: actions/upload-artifact@v2
+        name: set up test binaries to cache
+        with:
+          name: test-binaries-${{ github.sha }}
+          path: ./test-binaries/
+          retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@master
+
+      - name: get test binaries from cache
+        uses: actions/download-artifact@v2
+        with:
+          name: test-binaries-${{ github.sha }}
+          path: ./test-binaries/
 
       - name: Launch postgres and min.io
         run: |
@@ -32,21 +65,52 @@ jobs:
           # Make sure the database is actually working
           psql "${CRATESFYI_DATABASE_URL}"
 
-      - name: Build
-        run: cargo build --workspace --locked
-
-      - name: fast tests
-        run: cargo test --workspace --locked
-
-      - name: create small build-environment
+      - name: run tests
+        shell: bash
         run: |
-          docker build -t buildenv - < dockerfiles/Dockerfile-small-build-env
+          for f in ./test-binaries/*; do
+            echo "running $f"
+            chmod +x $f  # GH action artifacts don't handle permissions
+            $f || exit 1
+          done
+
+      - name: Clean up the database
+        run: docker-compose down --volumes
+
+  build_tests:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@master
+
+      - name: get test binaries from cache
+        uses: actions/download-artifact@v2
+        with:
+          name: test-binaries-${{ github.sha }}
+          path: ./test-binaries/
+
+      - name: Launch postgres and min.io
+        run: |
+          cp .env.sample .env
+          . .env
+          mkdir -p ${CRATESFYI_PREFIX}/public-html
+          docker-compose up -d db s3
+          # Give the database enough time to start up
+          sleep 5
+          # Make sure the database is actually working
+          psql "${CRATESFYI_DATABASE_URL}"
 
       - name: slow tests
         env:
           DOCSRS_INCLUDE_DEFAULT_TARGETS: true
-          DOCS_RS_LOCAL_DOCKER_IMAGE: buildenv
-        run: cargo test --workspace --locked -- --ignored
+          DOCSRS_DOCKER_IMAGE: ghcr.io/rust-lang/crates-build-env/linux-micro
+        run: |
+          for f in ./test-binaries/*; do
+            echo "running $f"
+            chmod +x $f  # GH action artifacts don't handle permissions
+            $f --ignored || exit 1
+          done
 
       - name: Clean up the database
         run: docker-compose down --volumes

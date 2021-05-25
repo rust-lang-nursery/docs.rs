@@ -31,6 +31,15 @@ pub(super) fn build_routes() -> Routes {
 
     routes.static_resource("/-/static/:single", super::statics::static_handler);
     routes.static_resource("/-/static/*", super::statics::static_handler);
+    routes.internal_page("/-/storage-change-detection.html", {
+        #[derive(Debug, serde::Serialize)]
+        struct StorageChangeDetection {}
+        crate::impl_webpage!(StorageChangeDetection = "storage-change-detection.html");
+        fn storage_change_detection(req: &mut iron::Request) -> iron::IronResult<iron::Response> {
+            crate::web::page::WebPage::into_response(StorageChangeDetection {}, req)
+        }
+        storage_change_detection
+    });
 
     routes.internal_page("/", super::releases::home_page);
 

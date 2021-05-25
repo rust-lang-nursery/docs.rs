@@ -34,20 +34,6 @@
 
                 #}<ul class="pure-menu-list pure-menu-right">
                     <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover pure-menu-opt-children">
-                        <a href="/about" class="pure-menu-link">
-                            <span title="About">{{ "info-circle" | fas }}</span>
-                            <span class="title">About</span>
-                        </a>
-
-                        <ul class="pure-menu-children">
-                            {{ macros::menu_link(href="/about/badges", text="Badges") }}
-                            {{ macros::menu_link(href="/about/builds", text="Builds") }}
-                            {{ macros::menu_link(href="/about/metadata", text="Metadata") }}
-                            {{ macros::menu_link(href="/about/redirections", text="Shorthand URLs") }}
-                        </ul>
-                    </li>{#
-
-                    #}<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover pure-menu-opt-children">
                         <a href="/releases" class="pure-menu-link">
                             <span title="Releases">{{ "leaf" | fas }}</span>
                             <span class="title">Releases</span>
@@ -58,7 +44,6 @@
                             {{ macros::menu_link(href="/releases/recent-failures", text="Recent Build Failures") }}
                             {{ macros::menu_link(href="/releases/failures", text="Build Failures by Stars") }}
                             {{ macros::menu_link(href="/releases/activity", text="Release Activity") }}
-                            {{ macros::menu_link(href="/releases/queue", text="Build Queue") }}
                         </ul>
                     </li>{#
 

@@ -8,7 +8,7 @@ window.addEventListener('storage', function (ev) {
   }
 });
 
-// see ../static/storage-change-detection.html for details
+// see ./storage-change-detection.html for details
 window.addEventListener('message', function (ev) {
   if (ev.data && ev.data.storage && ev.data.storage.key === 'rustdoc-theme') {
     applyTheme(ev.data.storage.value);

@@ -37,7 +37,7 @@ badge = { path = "crates/badge" }
 docsrs-metadata = { path = "crates/metadata" }
 backtrace = "0.3"
 failure = { version = "0.1.3", features = ["backtrace"] }
-comrak = { version = "0.9.1", default-features = false }
+comrak = { version = "0.10.1", default-features = false }
 toml = "0.5"
 schemamama = "0.3"
 schemamama_postgres = "0.3"

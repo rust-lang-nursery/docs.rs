@@ -139,8 +139,8 @@ div.nav-container {
     // These hardcoded values are "magic", in the sense they were observed to be the lowest-possible
     // thresholds through experimentation with a package name that hit the max-width of the element.
     $full-width: 1142px;
-    $medium-width: 994px;
-    $narrow-width: 901px;
+    $medium-width: 837px;
+    $narrow-width: 783px;
 
     // use a .title span inside a menu to hide it on small screens
     span.title {

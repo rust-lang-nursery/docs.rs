@@ -1,0 +1,30 @@
+@import "vars";
+
+.docs-rs-footer {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 0.9em;
+    height: $footer-height;
+    background: var(--color-background);
+    border-top: 1px solid var(--color-border);
+    font-family: $font-family-sans;
+
+    > a {
+        font-weight: 400;
+        border-right: 1px solid var(--color-border);
+        padding: 4px 8px;
+        height: 100%;
+        display: inline-block;
+        color: var(--color-navbar-standard);
+
+        &:hover {
+            color: var(--color-standard);
+        }
+        &:first-child {
+            border-left: 1px solid var(--color-border);
+        }
+    }
+}

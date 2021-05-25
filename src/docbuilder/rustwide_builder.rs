@@ -14,7 +14,7 @@ use crate::{Config, Context, Index, Metrics, Storage};
 use docsrs_metadata::{Metadata, DEFAULT_TARGETS, HOST_TARGET};
 use log::{debug, info, warn, LevelFilter};
 use postgres::Client;
-use rustwide::cmd::{Command, SandboxBuilder, SandboxImage};
+use rustwide::cmd::{Command, CommandError, SandboxBuilder, SandboxImage};
 use rustwide::logging::{self, LogStorage};
 use rustwide::toolchain::ToolchainError;
 use rustwide::{Build, Crate, Toolchain, Workspace, WorkspaceBuilder};
@@ -52,8 +52,13 @@ impl RustwideBuilder {
 
         let mut builder = WorkspaceBuilder::new(&config.rustwide_workspace, USER_AGENT)
             .running_inside_docker(config.inside_docker);
-        if let Some(custom_image) = &config.local_docker_image {
-            builder = builder.sandbox_image(SandboxImage::local(&custom_image)?);
+        if let Some(custom_image) = &config.docker_image {
+            let image = match SandboxImage::local(&custom_image) {
+                Ok(i) => i,
+                Err(CommandError::SandboxImageMissing(_)) => SandboxImage::remote(custom_image)?,
+                Err(err) => return Err(err.into()),
+            };
+            builder = builder.sandbox_image(image);
         }
         if cfg!(test) {
             builder = builder.fast_init(true);
@@ -517,16 +522,24 @@ impl RustwideBuilder {
         let mut storage = LogStorage::new(LevelFilter::Info);
         storage.set_max_size(limits.max_log_size());
 
+        // we have to run coverage before the doc-build because currently it
+        // deletes the doc-target folder.
+        // https://github.com/rust-lang/cargo/issues/9447
+        let doc_coverage = match self.get_coverage(target, build, metadata, limits) {
+            Ok(cov) => cov,
+            Err(err) => {
+                log::info!("error when trying to get coverage: {}", err);
+                log::info!("continuing anyways.");
+                None
+            }
+        };
+
         let successful = logging::capture(&storage, || {
             self.prepare_command(build, target, metadata, limits, rustdoc_flags)
                 .and_then(|command| command.run().map_err(failure::Error::from))
                 .is_ok()
         });
-        let doc_coverage = if successful {
-            self.get_coverage(target, build, metadata, limits)?
-        } else {
-            None
-        };
+
         // If we're passed a default_target which requires a cross-compile,
         // cargo will put the output in `target/<target>/doc`.
         // However, if this is the default build, we don't want it there,
@@ -706,10 +719,12 @@ mod tests {
                     "SELECT 
                         r.rustdoc_status,
                         r.default_target,
-                        r.doc_targets
+                        r.doc_targets,
+                        cov.total_items
                     FROM 
                         crates as c 
                         INNER JOIN releases AS r ON c.id = r.crate_id
+                        LEFT OUTER JOIN doc_coverage AS cov ON r.id = cov.release_id
                     WHERE 
                         c.name = $1 AND 
                         r.version = $2",
@@ -720,6 +735,7 @@ mod tests {
 
             assert_eq!(row.get::<_, bool>("rustdoc_status"), true);
             assert_eq!(row.get::<_, String>("default_target"), default_target);
+            assert!(row.get::<_, Option<i32>>("total_items").is_some());
 
             let mut targets: Vec<String> = row
                 .get::<_, Value>("doc_targets")
