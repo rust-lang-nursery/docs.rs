@@ -10,18 +10,51 @@ use crate::{db::Pool, Config, Metrics};
 use chrono::{DateTime, Utc};
 use failure::{err_msg, Error};
 use path_slash::PathExt;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
     fmt, fs,
     io::{self, Write},
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 const MAX_CONCURRENT_UPLOADS: usize = 1000;
 
-pub type FileRange = std::ops::RangeInclusive<u64>;
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FileRange {
+    inner: RangeInclusive<u64>,
+    len: u64,
+}
+
+impl FileRange {
+    pub fn new(start: u64, end: u64) -> Self {
+        Self {
+            inner: start..=end,
+            len: end - start + 1,
+        }
+    }
+    pub fn start(&self) -> &u64 {
+        self.inner.start()
+    }
+    pub fn end(&self) -> &u64 {
+        self.inner.end()
+    }
+    pub fn len(&self) -> &u64 {
+        &self.len
+    }
+}
+
+impl From<RangeInclusive<u64>> for FileRange {
+    fn from(range: RangeInclusive<u64>) -> Self {
+        Self {
+            len: range.end() - range.start() + 1,
+            inner: range,
+        }
+    }
+}
 
 #[derive(Debug, failure::Fail)]
 #[fail(display = "path not found")]
@@ -216,18 +249,23 @@ impl Storage {
     ) -> Result<(HashMap<PathBuf, String>, CompressionAlgorithm), Error> {
         let mut file_paths = HashMap::new();
 
-        // due to how we retrieve the archived files, the compression method has to be supported
-        // by our normal content-encoding / compression logic.
-        // Deflate is not supported right now, and is compressing worse anyways.
+        // We are only using the `zip` library to create the archives and the matching
+        // index-file. The ZIP format allows more compression formats, and these can even be mixed
+        // in a single archive.
+        //
+        // Decompression happens by fetching only the part of the remote archive that contains
+        // the compressed stream of the object we put into the archive.
+        // For decompression we are sharing the compression algorithms defined in
+        // `storage::compression`. So every new algorithm to be used inside ZIP archives
+        // also has to be added as supported algorithm for storage compression, together
+        // with a mapping in `storage::archive_index::Index::new_from_zip`.
+
         let options =
             zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Bzip2);
 
         let mut zip = zip::ZipWriter::new(io::Cursor::new(Vec::new()));
         for file_path in get_file_list(root_dir)? {
             let mut file = fs::File::open(root_dir.join(&file_path))?;
-
-            // TODO: should we create directories with `start_directory`?
-            // it's not standard, but convention for zip files
 
             zip.start_file(file_path.to_str().unwrap(), options)?;
             io::copy(&mut file, &mut zip)?;
@@ -548,19 +586,19 @@ mod backend_tests {
         assert_eq!(
             blob.content[0..=4],
             storage
-                .get_range("foo/bar.txt", std::usize::MAX, 0..=4, None)?
+                .get_range("foo/bar.txt", std::usize::MAX, (0..=4).into(), None)?
                 .content
         );
         assert_eq!(
             blob.content[5..=12],
             storage
-                .get_range("foo/bar.txt", std::usize::MAX, 5..=12, None)?
+                .get_range("foo/bar.txt", std::usize::MAX, (5..=12).into(), None)?
                 .content
         );
 
         for path in &["bar.txt", "baz.txt", "foo/baz.txt"] {
             assert!(storage
-                .get_range(path, std::usize::MAX, 0..=4, None)
+                .get_range(path, std::usize::MAX, (0..=4).into(), None)
                 .unwrap_err()
                 .downcast_ref::<PathNotFoundError>()
                 .is_some());

@@ -112,7 +112,7 @@ impl Config {
 
             rustwide_workspace: env("CRATESFYI_RUSTWIDE_WORKSPACE", PathBuf::from(".workspace"))?,
             local_archive_cache_path: env(
-                "CRATESFYI_ARCHIVE_INDEX_CACHE_PATH",
+                "DOCS_RS_ARCHIVE_INDEX_CACHE_PATH",
                 PathBuf::from(".archive_cache"),
             )?,
             inside_docker: env("DOCS_RS_DOCKER", false)?,

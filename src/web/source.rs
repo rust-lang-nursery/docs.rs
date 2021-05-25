@@ -237,7 +237,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
                     name = $1 AND 
                     version = $2
                 ",
-                &[&name, &version]
+                &[&crate_name, &version]
             )
         );
 
@@ -252,7 +252,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         if archive_storage {
             DbFile::from_archive_path(
                 &storage, // TODO: unify finding archive names somewhere
-                &format!("sources/{0}/sources-{0}-{1}.zip", name, version),
+                &format!("sources/{0}/sources-{0}-{1}.zip", crate_name, version),
                 &file_path,
                 &config,
             )
@@ -260,7 +260,7 @@ pub fn source_browser_handler(req: &mut Request) -> IronResult<Response> {
         } else {
             DbFile::from_path(
                 &storage,
-                &format!("sources/{}/{}/{}", name, version, file_path),
+                &format!("sources/{}/{}/{}", crate_name, version, file_path),
                 &config,
             )
             .ok()

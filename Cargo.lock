@@ -801,6 +801,7 @@ dependencies = [
  "schemamama_postgres",
  "semver",
  "serde",
+ "serde_cbor",
  "serde_json",
  "slug",
  "string_cache",

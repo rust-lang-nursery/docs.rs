@@ -28,13 +28,13 @@ pub struct Index {
 
 impl Index {
     pub fn load(reader: impl io::Read) -> Result<Index> {
-        serde_json::from_reader(reader)
+        serde_cbor::from_reader(reader)
             .context("deserialization error")
             .map_err(Into::into)
     }
 
     pub fn save(&self, writer: impl io::Write) -> Result<()> {
-        serde_json::to_writer(writer, self)
+        serde_cbor::to_writer(writer, self)
             .context("serialization error")
             .map_err(Into::into)
     }
@@ -50,7 +50,10 @@ impl Index {
             files.insert(
                 PathBuf::from(zf.name()),
                 FileInfo {
-                    range: zf.data_start()..=(zf.data_start() + zf.compressed_size() - 1),
+                    range: FileRange::new(
+                        zf.data_start(),
+                        zf.data_start() + zf.compressed_size() - 1,
+                    ),
                     compression: match zf.compression() {
                         zip::CompressionMethod::Bzip2 => CompressionAlgorithm::Bzip2,
                         c => failure::bail!("unsupported compression algorithm {} in zip-file", c),

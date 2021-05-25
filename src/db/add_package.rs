@@ -61,7 +61,7 @@ pub(crate) fn add_package_into_database(
          VALUES (
             $1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,
             $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20, $21, $22, $23, $24, $25, $26, $27, 
+            $19, $20, $21, $22, $23, $24, $25, $26, $27 
          )
          ON CONFLICT (crate_id, version) DO UPDATE
             SET release_time = $3,
@@ -87,7 +87,7 @@ pub(crate) fn add_package_into_database(
                 documentation_url = $23,
                 default_target = $24,
                 features = $25,
-                repository_id = $26
+                repository_id = $26,
                 archive_storage = $27
          RETURNING id",
         &[

@@ -35,8 +35,7 @@ impl DatabaseBackend {
 
         let rows = if let Some(r) = range {
             // when we only want to get a range we can validate already if the range is small enough
-            let (range_size, _) = r.size_hint();
-            if range_size > max_size as usize {
+            if range.len() > max_size as u64 {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     crate::error::SizeLimitReached,
