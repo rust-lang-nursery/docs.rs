@@ -35,7 +35,7 @@ impl DatabaseBackend {
 
         let rows = if let Some(r) = range {
             // when we only want to get a range we can validate already if the range is small enough
-            if range.len() > max_size as u64 {
+            if r.len() > &(max_size as u64) {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     crate::error::SizeLimitReached,
@@ -54,7 +54,7 @@ impl DatabaseBackend {
                 &[
                     &path,
                     &(range_start + 1), // postgres substring is 1-indexed
-                    &(range_size as i32),
+                    &(*r.len() as i32),
                 ],
             )?
         } else {
