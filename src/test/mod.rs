@@ -145,6 +145,12 @@ impl TestEnvironment {
                 .cleanup_after_test()
                 .expect("failed to cleanup after tests");
         }
+
+        if let Some(config) = self.config.get() {
+            if config.local_archive_cache_path.exists() {
+                fs::remove_dir_all(&config.local_archive_cache_path).unwrap();
+            }
+        }
     }
 
     pub(crate) fn base_config(&self) -> Config {
@@ -163,6 +169,9 @@ impl TestEnvironment {
         // Use a temporary S3 bucket.
         config.s3_bucket = format!("docsrs-test-bucket-{}", rand::random::<u64>());
         config.s3_bucket_is_temporary = true;
+
+        config.local_archive_cache_path =
+            std::env::temp_dir().join(format!("docsrs-test-index-{}", rand::random::<u64>()));
 
         config
     }

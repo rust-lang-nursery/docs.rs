@@ -1,11 +1,18 @@
+use bzip2::read::{BzDecoder, BzEncoder};
+use bzip2::Compression;
 use failure::Error;
-use std::{collections::HashSet, fmt, io::Read};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashSet,
+    fmt,
+    io::{self, Read},
+};
 
 pub type CompressionAlgorithms = HashSet<CompressionAlgorithm>;
 
 macro_rules! enum_id {
     ($vis:vis enum $name:ident { $($variant:ident = $discriminant:expr,)* }) => {
-        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
         $vis enum $name {
             $($variant = $discriminant,)*
         }
@@ -48,6 +55,7 @@ macro_rules! enum_id {
 enum_id! {
     pub enum CompressionAlgorithm {
         Zstd = 0,
+        Bzip2 = 1,
     }
 }
 
@@ -61,6 +69,13 @@ impl Default for CompressionAlgorithm {
 pub fn compress(content: impl Read, algorithm: CompressionAlgorithm) -> Result<Vec<u8>, Error> {
     match algorithm {
         CompressionAlgorithm::Zstd => Ok(zstd::encode_all(content, 9)?),
+        CompressionAlgorithm::Bzip2 => {
+            let mut compressor = BzEncoder::new(content, Compression::best());
+
+            let mut data = vec![];
+            compressor.read_to_end(&mut data)?;
+            Ok(data)
+        }
     }
 }
 
@@ -74,6 +89,9 @@ pub fn decompress(
 
     match algorithm {
         CompressionAlgorithm::Zstd => zstd::stream::copy_decode(content, &mut buffer)?,
+        CompressionAlgorithm::Bzip2 => {
+            io::copy(&mut BzDecoder::new(content), &mut buffer)?;
+        }
     }
 
     Ok(buffer.into_inner())

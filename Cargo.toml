@@ -57,6 +57,9 @@ font-awesome-as-a-crate = { path = "crates/font-awesome-as-a-crate" }
 dashmap = "3.11.10"
 string_cache = "0.8.0"
 postgres-types = { version = "0.2", features = ["derive"] }
+zip = "0.5.11"
+bzip2 = "0.4.2"
+serde_cbor = "0.11.1"
 getrandom = "0.2.1"
 
 # Async

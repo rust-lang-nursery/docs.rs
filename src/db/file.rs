@@ -8,7 +8,7 @@
 //! However, postgres is still available for testing and backwards compatibility.
 
 use crate::error::Result;
-use crate::storage::{CompressionAlgorithms, Storage};
+use crate::storage::{CompressionAlgorithm, CompressionAlgorithms, Storage};
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -31,6 +31,18 @@ pub fn add_path_into_database<P: AsRef<Path>>(
     Ok((
         file_list_to_json(file_list.into_iter().collect()),
         algorithms,
+    ))
+}
+
+pub fn add_path_into_remote_archive<P: AsRef<Path>>(
+    storage: &Storage,
+    archive_path: &str,
+    path: P,
+) -> Result<(Value, CompressionAlgorithm)> {
+    let (file_list, algorithm) = storage.store_all_in_archive(archive_path, path.as_ref())?;
+    Ok((
+        file_list_to_json(file_list.into_iter().collect()),
+        algorithm,
     ))
 }
 

@@ -1,9 +1,9 @@
-use super::{Blob, StorageTransaction};
+use super::{Blob, FileRange, StorageTransaction};
 use crate::db::Pool;
 use crate::Metrics;
 use failure::Error;
 use postgres::Transaction;
-use std::sync::Arc;
+use std::{convert::TryFrom, sync::Arc};
 
 pub(crate) struct DatabaseBackend {
     pool: Pool,
@@ -21,24 +21,55 @@ impl DatabaseBackend {
         Ok(conn.query(query, &[&path])?[0].get(0))
     }
 
-    pub(super) fn get(&self, path: &str, max_size: usize) -> Result<Blob, Error> {
+    pub(super) fn get(
+        &self,
+        path: &str,
+        max_size: usize,
+        range: Option<FileRange>,
+    ) -> Result<Blob, Error> {
         use std::convert::TryInto;
 
         // The maximum size for a BYTEA (the type used for `content`) is 1GB, so this cast is safe:
         // https://www.postgresql.org/message-id/162867790712200946i7ba8eb92v908ac595c0c35aee%40mail.gmail.com
         let max_size = max_size.min(std::i32::MAX as usize) as i32;
 
-        // The size limit is checked at the database level, to avoid receiving data altogether if
-        // the limit is exceeded.
-        let rows = self.pool.get()?.query(
-            "SELECT
-                 path, mime, date_updated, compression,
-                 (CASE WHEN LENGTH(content) <= $2 THEN content ELSE NULL END) AS content,
-                 (LENGTH(content) > $2) AS is_too_big
-             FROM files
-             WHERE path = $1;",
-            &[&path, &(max_size)],
-        )?;
+        let rows = if let Some(r) = range {
+            // when we only want to get a range we can validate already if the range is small enough
+            if r.len() > &(max_size as u64) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    crate::error::SizeLimitReached,
+                )
+                .into());
+            }
+            let range_start = i32::try_from(*r.start())?;
+
+            self.pool.get()?.query(
+                "SELECT
+                     path, mime, date_updated, compression,
+                     substring(content from $2 for $3) as content,
+                     FALSE as is_too_big
+                 FROM files
+                 WHERE path = $1;",
+                &[
+                    &path,
+                    &(range_start + 1), // postgres substring is 1-indexed
+                    &(*r.len() as i32),
+                ],
+            )?
+        } else {
+            // The size limit is checked at the database level, to avoid receiving data altogether if
+            // the limit is exceeded.
+            self.pool.get()?.query(
+                "SELECT
+                     path, mime, date_updated, compression,
+                     (CASE WHEN LENGTH(content) <= $2 THEN content ELSE NULL END) AS content,
+                     (LENGTH(content) > $2) AS is_too_big
+                 FROM files
+                 WHERE path = $1;",
+                &[&path, &(max_size)],
+            )?
+        };
 
         if rows.is_empty() {
             Err(super::PathNotFoundError.into())

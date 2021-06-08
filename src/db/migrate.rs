@@ -736,6 +736,11 @@ pub fn migrate(version: Option<Version>, conn: &mut Client) -> crate::error::Res
             "ALTER TABLE builds RENAME COLUMN cratesfyi_version TO docsrs_version",
             "ALTER TABLE builds RENAME COLUMN docsrs_version TO cratesfyi_version",
         ),
+        migration!(
+            context, 30, "add archive-storage marker for releases",
+            "ALTER TABLE releases ADD COLUMN archive_storage BOOL NOT NULL DEFAULT FALSE;",
+            "ALTER TABLE releases DROP COLUMN archive_storage;",
+        ),
     ];
 
     for migration in migrations {

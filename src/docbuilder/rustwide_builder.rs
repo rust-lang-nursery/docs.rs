@@ -1,13 +1,12 @@
 use crate::db::file::add_path_into_database;
 use crate::db::{
     add_build_into_database, add_doc_coverage, add_package_into_database,
-    update_crate_data_in_database, Pool,
+    add_path_into_remote_archive, update_crate_data_in_database, Pool,
 };
 use crate::docbuilder::{crates::crates_from_path, Limits};
 use crate::error::Result;
 use crate::index::api::ReleaseData;
 use crate::repositories::RepositoryStatsUpdater;
-use crate::storage::CompressionAlgorithms;
 use crate::utils::{copy_dir_all, parse_rustc_version, CargoMetadata};
 use crate::{db::blacklist::is_blacklisted, utils::MetadataPackage};
 use crate::{Config, Context, Index, Metrics, Storage};
@@ -343,16 +342,22 @@ impl RustwideBuilder {
                             &metadata,
                         )?;
                     }
-                    let new_algs = self.upload_docs(name, version, local_storage.path())?;
-                    algs.extend(new_algs);
+
+                    let (_, new_alg) = add_path_into_remote_archive(
+                        &self.storage,
+                        &format!("rustdoc/{0}/rustdoc-{0}-{1}.zip", name, version),
+                        local_storage.path(),
+                    )?;
+                    algs.insert(new_alg);
                 };
 
                 // Store the sources even if the build fails
                 debug!("adding sources into database");
-                let prefix = format!("sources/{}/{}", name, version);
-                let (files_list, new_algs) =
-                    add_path_into_database(&self.storage, &prefix, build.host_source_dir())?;
-                algs.extend(new_algs);
+                // TODO: move generating the archive path to somewhere else
+                let archive = format!("sources/{0}/sources-{0}-{1}.zip", name, version);
+                let (files_list, new_alg) =
+                    add_path_into_remote_archive(&self.storage, &archive, build.host_source_dir())?;
+                algs.insert(new_alg);
 
                 let has_examples = build.host_source_dir().join("examples").is_dir();
                 if res.result.successful {
@@ -387,6 +392,7 @@ impl RustwideBuilder {
                     has_examples,
                     algs,
                     repository,
+                    true,
                 )?;
 
                 if let Some(doc_coverage) = res.doc_coverage {
@@ -633,21 +639,6 @@ impl RustwideBuilder {
 
         info!("{} {}", source.display(), dest.display());
         copy_dir_all(source, dest).map_err(Into::into)
-    }
-
-    fn upload_docs(
-        &self,
-        name: &str,
-        version: &str,
-        local_storage: &Path,
-    ) -> Result<CompressionAlgorithms> {
-        debug!("Adding documentation into database");
-        add_path_into_database(
-            &self.storage,
-            &format!("rustdoc/{}/{}", name, version),
-            local_storage,
-        )
-        .map(|t| t.1)
     }
 
     fn should_build(&self, conn: &mut Client, name: &str, version: &str) -> Result<bool> {
