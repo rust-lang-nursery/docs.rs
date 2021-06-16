@@ -724,7 +724,9 @@ mod tests {
             let version = DUMMY_CRATE_VERSION;
             let default_target = "x86_64-unknown-linux-gnu";
 
-            assert_eq!(env.config().include_default_targets, true);
+            env.override_config(|config| {
+                config.include_default_targets = true;
+            });
 
             let mut builder = RustwideBuilder::init(env).unwrap();
             builder
