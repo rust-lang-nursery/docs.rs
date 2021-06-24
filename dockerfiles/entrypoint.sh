@@ -13,7 +13,7 @@ export PATH="$PATH:/build/target/release"
 set +e
 failed=0
 while true; do
-    if ! cratesfyi database migrate; then
+    if ! docsrs database migrate; then
         ((failed=failed + 1))
         if [ "${failed}" -eq 5 ]; then
             exit 1
@@ -33,6 +33,6 @@ if ! [ -d "${DOCSRS_PREFIX}/crates.io-index/.git" ]; then
     git --git-dir="$DOCSRS_PREFIX/crates.io-index/.git" branch crates-index-diff_last-seen
 fi
 
-cratesfyi build update-toolchain --only-first-time
+docsrs build update-toolchain --only-first-time
 
-cratesfyi "$@"
+docsrs "$@"

@@ -17,10 +17,10 @@ services:
             - "cratesio-index:/opt/docsrs/prefix/crates.io-index"
         environment:
             DOCSRS_RUSTWIDE_WORKSPACE: /opt/docsrs/rustwide
-            DOCSRS_DATABASE_URL: postgresql://cratesfyi:password@db
+            DOCSRS_DATABASE_URL: postgresql://docsrs:password@db
             DOCSRS_STORAGE_BACKEND: s3
             S3_ENDPOINT: http://s3:9000
-            AWS_ACCESS_KEY_ID: cratesfyi
+            AWS_ACCESS_KEY_ID: docsrs
             AWS_SECRET_ACCESS_KEY: secret_key
         env_file:
             - .env
@@ -37,13 +37,13 @@ services:
         volumes:
             - postgres-data:/var/lib/postgresql/data
         environment:
-            POSTGRES_USER: cratesfyi
+            POSTGRES_USER: docsrs
             POSTGRES_PASSWORD: password
         ports:
             # Use a non-standard port on the host to avoid conflicting with existing postgres servers
             - "15432:5432"
         healthcheck:
-            test: ["CMD", "pg_isready", "--username", "cratesfyi"]
+            test: ["CMD", "pg_isready", "--username", "docsrs"]
             interval: 10s
             timeout: 5s
             retries: 10
@@ -60,7 +60,7 @@ services:
         volumes:
             - minio-data:/data
         environment:
-            MINIO_ACCESS_KEY: cratesfyi
+            MINIO_ACCESS_KEY: docsrs
             MINIO_SECRET_KEY: secret_key
         healthcheck:
             test:
