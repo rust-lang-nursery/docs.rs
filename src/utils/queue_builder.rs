@@ -80,9 +80,7 @@ pub fn queue_builder(
             }
         }
 
-        // Run build_packages_queue under `catch_unwind` to catch panics
-        // This only panicked twice in the last 6 months but its just a better
-        // idea to do this.
+        // If a panic occurs while building a crate, lock the queue until an admin has a chance to look at it.
         let res = catch_unwind(AssertUnwindSafe(|| {
             match doc_builder.build_next_queue_package(&mut builder) {
                 Err(e) => error!("Failed to build crate from queue: {}", e),
@@ -96,6 +94,8 @@ pub fn queue_builder(
 
         if let Err(e) = res {
             error!("GRAVE ERROR Building new crates panicked: {:?}", e);
+            // If we panic here something is really truly wrong and trying to handle the error won't help.
+            doc_builder.lock().expect("failed to lock queue");
         }
     }
 
