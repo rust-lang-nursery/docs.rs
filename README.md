@@ -59,7 +59,7 @@ cd docs.rs
 # Configure the default settings for external services
 cp .env.sample .env
 # Create the DOCSRS_PREFIX directory
-mkdir -p ignored/cratesfyi-prefix/crates.io-index
+mkdir -p ignored/docsrs-prefix/crates.io-index
 # Builds the docs.rs binary
 cargo build
 # Start the external services
@@ -121,8 +121,8 @@ Three services are defined:
 | name | access                                          | credentials                | description                            |
 |------|-------------------------------------------------|----------------------------|----------------------------------------|
 | web  | http://localhost:3000                           | N/A                        | A container running the docs.rs binary |
-| db   | postgresql://cratesfyi:password@localhost:15432 | -                          | Postgres database used by web          |
-| s3   | http://localhost:9000                           | `cratesfyi` - `secret_key` | MinIO (simulates AWS S3) used by web   |
+| db   | postgresql://docsrs:password@localhost:15432 | -                          | Postgres database used by web          |
+| s3   | http://localhost:9000                           | `docsrs` - `secret_key` | MinIO (simulates AWS S3) used by web   |
 
 [docker-compose.yml]: ./docker-compose.yml
 

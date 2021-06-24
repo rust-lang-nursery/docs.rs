@@ -33,9 +33,7 @@ COPY Cargo.lock Cargo.toml ./
 COPY crates/badge crates/badge/
 COPY crates/metadata crates/metadata/
 COPY crates/font-awesome-as-a-crate crates/font-awesome-as-a-crate
-RUN mkdir src/bin && \
-    echo "fn main() {}" > src/bin/cratesfyi.rs && \
-    echo "fn main() {}" > build.rs
+RUN echo "fn main() {}" > src/main.rs && echo "fn main() {}" > build.rs
 
 RUN cargo fetch
 RUN cargo build --release
@@ -73,7 +71,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 
 RUN mkdir -p /opt/docsrs/prefix
 
-COPY --from=build /build/target/release/cratesfyi /usr/local/bin
+COPY --from=build /build/target/release/docsrs /usr/local/bin
 COPY static /opt/docsrs/static
 COPY templates /opt/docsrs/templates
 COPY dockerfiles/entrypoint.sh /opt/docsrs/
