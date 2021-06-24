@@ -61,7 +61,7 @@ enum Toggle {
 
 #[derive(Debug, Clone, PartialEq, Eq, StructOpt)]
 #[structopt(
-    name = "cratesfyi",
+    name = "docsrs",
     about = env!("CARGO_PKG_DESCRIPTION"),
     version = docs_rs::BUILD_VERSION,
     rename_all = "kebab-case",

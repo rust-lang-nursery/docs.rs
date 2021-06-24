@@ -116,6 +116,7 @@ name = "compression"
 harness = false
 
 [[bin]]
-name = "cratesfyi"
+name = "docsrs"
+path = "src/main.rs"
 test = false
 doc = false
