@@ -11,7 +11,7 @@ impl DocBuilder {
     /// Updates registry index repository and adds new crates into build queue.
     /// Returns the number of crates added
     pub fn get_new_crates(&mut self, index: &Index) -> Result<usize> {
-        let mut conn = self.db.get()?;
+        let mut conn = self.build_queue.db.get()?;
         let diff = index.diff()?;
         let (mut changes, oid) = diff.peek_changes()?;
         let mut crates_added = 0;

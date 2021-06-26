@@ -2,6 +2,7 @@ use crate::db::Pool;
 use crate::error::Result;
 use crate::{Config, Metrics};
 use log::error;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize)]
@@ -16,18 +17,29 @@ pub(crate) struct QueuedCrate {
 
 #[derive(Debug)]
 pub struct BuildQueue {
-    db: Pool,
+    config: Arc<Config>,
+    pub(crate) db: Pool,
     metrics: Arc<Metrics>,
     max_attempts: i32,
 }
 
 impl BuildQueue {
-    pub fn new(db: Pool, metrics: Arc<Metrics>, config: &Config) -> Self {
+    pub fn new(db: Pool, metrics: Arc<Metrics>, config: Arc<Config>) -> Self {
         BuildQueue {
+            max_attempts: config.build_attempts.into(),
+            config,
             db,
             metrics,
-            max_attempts: config.build_attempts.into(),
         }
+    }
+
+    pub(crate) fn lock_path(&self) -> PathBuf {
+        self.config.prefix.join("docsrs.lock")
+    }
+
+    /// Checks for the lock file and returns whether it currently exists.
+    pub fn is_locked(&self) -> bool {
+        self.lock_path().exists()
     }
 
     pub fn add_crate(

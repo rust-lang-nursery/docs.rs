@@ -33,7 +33,7 @@ pub fn queue_builder(
         }
 
         // check lock file
-        if doc_builder.is_locked() {
+        if doc_builder.build_queue.is_locked() {
             warn!("Lock file exits, skipping building new crates");
             status = BuilderState::Locked;
             continue;

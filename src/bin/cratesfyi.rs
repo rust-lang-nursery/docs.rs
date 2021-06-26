@@ -287,7 +287,7 @@ enum BuildSubcommand {
 
 impl BuildSubcommand {
     pub fn handle_args(self, ctx: BinContext, skip_if_exists: bool) -> Result<(), Error> {
-        let docbuilder = DocBuilder::new(ctx.config()?, ctx.pool()?, ctx.build_queue()?);
+        let docbuilder = DocBuilder::new(ctx.build_queue()?);
 
         let rustwide_builder = || -> Result<RustwideBuilder, Error> {
             let mut builder = RustwideBuilder::init(&ctx)?;
@@ -558,7 +558,7 @@ impl Context for BinContext {
                 Ok(Arc::new(BuildQueue::new(
                     self.pool()?,
                     self.metrics()?,
-                    &*self.config()?,
+                    self.config()?.clone(),
                 )))
             })?
             .clone())

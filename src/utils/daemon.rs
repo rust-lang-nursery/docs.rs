@@ -9,7 +9,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 fn start_registry_watcher(context: &dyn Context) -> Result<(), Error> {
-    let pool = context.pool()?;
     let build_queue = context.build_queue()?;
     let config = context.config()?;
     let index = context.index()?;
@@ -22,10 +21,9 @@ fn start_registry_watcher(context: &dyn Context) -> Result<(), Error> {
 
             let mut last_gc = Instant::now();
             loop {
-                let mut doc_builder =
-                    DocBuilder::new(config.clone(), pool.clone(), build_queue.clone());
+                let mut doc_builder = DocBuilder::new(build_queue.clone());
 
-                if doc_builder.is_locked() {
+                if doc_builder.build_queue.is_locked() {
                     debug!("Lock file exists, skipping checking new crates");
                 } else {
                     debug!("Checking new crates");
@@ -53,21 +51,18 @@ pub fn start_daemon(context: &dyn Context, enable_registry_watcher: bool) -> Res
     let server = crate::Server::start(None, false, context)?;
     let server_thread = thread::spawn(|| drop(server));
 
-    let config = context.config()?;
-
     if enable_registry_watcher {
         // check new crates every minute
         start_registry_watcher(context)?;
     }
 
     // build new crates every minute
-    let pool = context.pool()?;
     let build_queue = context.build_queue()?;
     let rustwide_builder = RustwideBuilder::init(context)?;
     thread::Builder::new()
         .name("build queue reader".to_string())
         .spawn(move || {
-            let doc_builder = DocBuilder::new(config.clone(), pool.clone(), build_queue.clone());
+            let doc_builder = DocBuilder::new(build_queue.clone());
             queue_builder(doc_builder, rustwide_builder, build_queue).unwrap();
         })
         .unwrap();
