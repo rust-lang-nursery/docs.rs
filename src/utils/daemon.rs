@@ -2,7 +2,7 @@
 //!
 //! This daemon will start web server, track new packages and build them
 
-use crate::{utils::queue_builder, Context, DocBuilder, RustwideBuilder};
+use crate::{utils::queue_builder, Context, RustwideBuilder};
 use failure::Error;
 use log::{debug, error, info};
 use std::thread;
@@ -21,13 +21,11 @@ fn start_registry_watcher(context: &dyn Context) -> Result<(), Error> {
 
             let mut last_gc = Instant::now();
             loop {
-                let mut doc_builder = DocBuilder::new(build_queue.clone());
-
-                if doc_builder.build_queue.is_locked() {
+                if build_queue.is_locked() {
                     debug!("Lock file exists, skipping checking new crates");
                 } else {
                     debug!("Checking new crates");
-                    match doc_builder.get_new_crates(&index) {
+                    match build_queue.get_new_crates(&index) {
                         Ok(n) => debug!("{} crates added to queue", n),
                         Err(e) => error!("Failed to get new crates: {}", e),
                     }
@@ -62,8 +60,7 @@ pub fn start_daemon(context: &dyn Context, enable_registry_watcher: bool) -> Res
     thread::Builder::new()
         .name("build queue reader".to_string())
         .spawn(move || {
-            let doc_builder = DocBuilder::new(build_queue.clone());
-            queue_builder(doc_builder, rustwide_builder, build_queue).unwrap();
+            queue_builder(rustwide_builder, build_queue).unwrap();
         })
         .unwrap();
 

@@ -1,7 +1,13 @@
 use crate::db::Pool;
+use crate::docbuilder::PackageKind;
 use crate::error::Result;
-use crate::{Config, Metrics};
-use log::error;
+use crate::utils::get_crate_priority;
+use crate::{Config, Index, Metrics, RustwideBuilder};
+
+use crates_index_diff::ChangeKind;
+use log::{debug, error};
+
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -31,15 +37,6 @@ impl BuildQueue {
             db,
             metrics,
         }
-    }
-
-    pub(crate) fn lock_path(&self) -> PathBuf {
-        self.config.prefix.join("docsrs.lock")
-    }
-
-    /// Checks for the lock file and returns whether it currently exists.
-    pub fn is_locked(&self) -> bool {
-        self.lock_path().exists()
     }
 
     pub fn add_crate(
@@ -142,6 +139,130 @@ impl BuildQueue {
         }
 
         Ok(())
+    }
+}
+
+/// Locking functions.
+impl BuildQueue {
+    pub(crate) fn lock_path(&self) -> PathBuf {
+        self.config.prefix.join("docsrs.lock")
+    }
+
+    /// Checks for the lock file and returns whether it currently exists.
+    pub fn is_locked(&self) -> bool {
+        self.lock_path().exists()
+    }
+
+    /// Creates a lock file. Daemon will check this lock file and stop operating if its exists.
+    pub fn lock(&self) -> Result<()> {
+        let path = self.lock_path();
+        if !path.exists() {
+            fs::OpenOptions::new().write(true).create(true).open(path)?;
+        }
+
+        Ok(())
+    }
+
+    /// Removes lock file.
+    pub fn unlock(&self) -> Result<()> {
+        let path = self.lock_path();
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Index methods.
+impl BuildQueue {
+    /// Updates registry index repository and adds new crates into build queue.
+    ///
+    /// Returns the number of crates added
+    pub fn get_new_crates(&self, index: &Index) -> Result<usize> {
+        let mut conn = self.db.get()?;
+        let diff = index.diff()?;
+        let (mut changes, oid) = diff.peek_changes()?;
+        let mut crates_added = 0;
+
+        // I believe this will fix ordering of queue if we get more than one crate from changes
+        changes.reverse();
+
+        for krate in &changes {
+            match krate.kind {
+                ChangeKind::Yanked => {
+                    let res = conn.execute(
+                        "
+                        UPDATE releases
+                            SET yanked = TRUE
+                        FROM crates
+                        WHERE crates.id = releases.crate_id
+                            AND name = $1
+                            AND version = $2
+                        ",
+                        &[&krate.name, &krate.version],
+                    );
+                    match res {
+                        Ok(_) => debug!("{}-{} yanked", krate.name, krate.version),
+                        Err(err) => error!(
+                            "error while setting {}-{} to yanked: {}",
+                            krate.name, krate.version, err
+                        ),
+                    }
+                }
+
+                ChangeKind::Added => {
+                    let priority = get_crate_priority(&mut conn, &krate.name)?;
+
+                    match self.add_crate(
+                        &krate.name,
+                        &krate.version,
+                        priority,
+                        index.repository_url(),
+                    ) {
+                        Ok(()) => {
+                            debug!("{}-{} added into build queue", krate.name, krate.version);
+                            crates_added += 1;
+                        }
+                        Err(err) => error!(
+                            "failed adding {}-{} into build queue: {}",
+                            krate.name, krate.version, err
+                        ),
+                    }
+                }
+            }
+        }
+
+        diff.set_last_seen_reference(oid)?;
+
+        Ok(crates_added)
+    }
+
+    /// Builds the top package from the queue. Returns whether there was a package in the queue.
+    ///
+    /// Note that this will return `Ok(true)` even if the package failed to build.
+    pub(crate) fn build_next_queue_package(&self, builder: &mut RustwideBuilder) -> Result<bool> {
+        let mut processed = false;
+        self.process_next_crate(|krate| {
+            processed = true;
+
+            let kind = krate
+                .registry
+                .as_ref()
+                .map(|r| PackageKind::Registry(r.as_str()))
+                .unwrap_or(PackageKind::CratesIo);
+
+            if let Err(err) = builder.update_toolchain() {
+                log::error!("Updating toolchain failed, locking queue: {}", err);
+                self.lock()?;
+                return Err(err);
+            }
+
+            builder.build_package(&krate.name, &krate.version, kind)?;
+            Ok(())
+        })?;
+
+        Ok(processed)
     }
 }
 

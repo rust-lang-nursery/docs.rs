@@ -1,4 +1,4 @@
-use crate::{docbuilder::RustwideBuilder, utils::pubsubhubbub, BuildQueue, DocBuilder};
+use crate::{docbuilder::RustwideBuilder, utils::pubsubhubbub, BuildQueue};
 use failure::Error;
 use log::{debug, error, info, warn};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -8,7 +8,6 @@ use std::time::Duration;
 
 // TODO: change to `fn() -> Result<!, Error>` when never _finally_ stabilizes
 pub fn queue_builder(
-    mut doc_builder: DocBuilder,
     mut builder: RustwideBuilder,
     build_queue: Arc<BuildQueue>,
 ) -> Result<(), Error> {
@@ -33,7 +32,7 @@ pub fn queue_builder(
         }
 
         // check lock file
-        if doc_builder.build_queue.is_locked() {
+        if build_queue.is_locked() {
             warn!("Lock file exits, skipping building new crates");
             status = BuilderState::Locked;
             continue;
@@ -82,7 +81,7 @@ pub fn queue_builder(
 
         // If a panic occurs while building a crate, lock the queue until an admin has a chance to look at it.
         let res = catch_unwind(AssertUnwindSafe(|| {
-            match doc_builder.build_next_queue_package(&mut builder) {
+            match build_queue.build_next_queue_package(&mut builder) {
                 Err(e) => error!("Failed to build crate from queue: {}", e),
                 Ok(crate_built) => {
                     if crate_built {
@@ -95,7 +94,7 @@ pub fn queue_builder(
         if let Err(e) = res {
             error!("GRAVE ERROR Building new crates panicked: {:?}", e);
             // If we panic here something is really truly wrong and trying to handle the error won't help.
-            doc_builder.lock().expect("failed to lock queue");
+            build_queue.lock().expect("failed to lock queue");
         }
     }
 
