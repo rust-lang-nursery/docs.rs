@@ -22,3 +22,9 @@ mod queue;
 mod queue_builder;
 mod rustc_version;
 pub(crate) mod sized_buffer;
+
+pub(crate) const APP_USER_AGENT: &str = concat!(
+    env!("CARGO_PKG_NAME"),
+    " ",
+    include_str!(concat!(env!("OUT_DIR"), "/git_version"))
+);

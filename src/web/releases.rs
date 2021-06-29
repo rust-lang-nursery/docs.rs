@@ -14,9 +14,10 @@ use iron::{
     modifiers::Redirect,
     status, IronResult, Request, Response, Url,
 };
+use log::{debug, trace};
 use postgres::Client;
 use router::Router;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Number of release in home page
 const RELEASES_IN_HOME: i64 = 15;
@@ -165,84 +166,95 @@ fn get_releases_by_owner(
 
 /// Get the search results for a crate search query
 ///
-/// Retrieves crates which names have a levenshtein distance of less than or equal to 3,
-/// crates who fit into or otherwise are made up of the query or crates whose descriptions
-/// match the search query.
-///
-/// * `query`: The query string, unfiltered
-/// * `page`: The page of results to show (1-indexed)
-/// * `limit`: The number of results to return
-///
-/// Returns 0 and an empty Vec when no results are found or if a database error occurs
-///
+/// This delegates to the crates.io search API.
 fn get_search_results(
     conn: &mut Client,
-    mut query: &str,
+    query: &str,
     page: i64,
     limit: i64,
-) -> Result<(i64, Vec<Release>), failure::Error> {
-    query = query.trim();
-    if query.is_empty() {
-        return Ok((0, Vec::new()));
+) -> Result<(u64, Vec<Release>), failure::Error> {
+    #[derive(Deserialize)]
+    struct CratesIoReleases {
+        crates: Vec<CratesIoRelease>,
+        meta: CratesIoMeta,
     }
-    let offset = (page - 1) * limit;
+    #[derive(Deserialize, Debug)]
+    struct CratesIoRelease {
+        name: String,
+        max_version: String,
+    }
+    #[derive(Deserialize)]
+    struct CratesIoMeta {
+        total: u64,
+    }
 
-    let statement = "
-        SELECT
-            crates.name AS name,
-            releases.version AS version,
-            releases.description AS description,
-            releases.target_name AS target_name,
-            releases.release_time AS release_time,
-            releases.rustdoc_status AS rustdoc_status,
-            repositories.stars AS stars,
-            COUNT(*) OVER() as total
-        FROM crates
-        INNER JOIN (
-            SELECT releases.id, releases.crate_id
-            FROM (
-                SELECT
-                    releases.id,
-                    releases.crate_id,
-                    RANK() OVER (PARTITION BY crate_id ORDER BY release_time DESC) as rank
-                FROM releases
-                WHERE releases.rustdoc_status AND NOT releases.yanked
-            ) AS releases
-            WHERE releases.rank = 1
-        ) AS latest_release ON latest_release.crate_id = crates.id
-        INNER JOIN releases ON latest_release.id = releases.id
-        LEFT JOIN repositories ON releases.repository_id = repositories.id
-        WHERE
-            ((char_length($1)::float - levenshtein(crates.name, $1)::float) / char_length($1)::float) >= 0.65
-            OR crates.name ILIKE CONCAT('%', $1, '%')
-        GROUP BY crates.id, releases.id, repositories.stars
-        ORDER BY
-            levenshtein(crates.name, $1) ASC,
-            crates.name ILIKE CONCAT('%', $1, '%'),
-            releases.downloads DESC
-        LIMIT $2 OFFSET $3";
+    use crate::utils::APP_USER_AGENT;
+    use once_cell::sync::Lazy;
+    use reqwest::blocking::Client as HttpClient;
+    use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, USER_AGENT};
 
-    let rows = conn.query(statement, &[&query, &limit, &offset])?;
+    static HTTP_CLIENT: Lazy<HttpClient> = Lazy::new(|| {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static(APP_USER_AGENT));
+        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+        HttpClient::builder()
+            .default_headers(headers)
+            .build()
+            .unwrap()
+    });
 
-    // Each row contains the total number of possible/valid results, just get it once
-    let total_results = rows
-        .get(0)
-        .map(|row| row.get::<_, i64>("total"))
-        .unwrap_or_default();
-    let packages: Vec<Release> = rows
+    let url = url::Url::parse_with_params(
+        "https://crates.io/api/v1/crates",
+        &[
+            ("q", query),
+            ("page", &page.to_string()),
+            ("per_page", &limit.to_string()),
+        ],
+    )?;
+    debug!("fetching search results from {}", url);
+    let releases: CratesIoReleases = HTTP_CLIENT.get(url).send()?.json()?;
+    let (names_and_versions, names): (Vec<_>, Vec<_>) = releases
+        .crates
         .into_iter()
-        .map(|row| Release {
-            name: row.get("name"),
-            version: row.get("version"),
-            description: row.get("description"),
-            target_name: row.get("target_name"),
-            release_time: row.get("release_time"),
-            rustdoc_status: row.get("rustdoc_status"),
-            stars: row.get::<_, Option<i32>>("stars").unwrap_or(0),
+        // The `postgres` crate doesn't support anonymous records.
+        // Use strings instead.
+        // Additionally, looking at both the name and version doesn't allow using the index;
+        // first filter by crate name so the query is more efficient.
+        .map(|krate| (format!("{}:{}", krate.name, krate.max_version), krate.name))
+        .unzip();
+    trace!("crates.io search results {:#?}", names_and_versions);
+    let crates = conn
+        .query(
+            "
+        SELECT
+            crates.name,
+            releases.version,
+            releases.description,
+            releases.release_time,
+            releases.target_name,
+            releases.rustdoc_status,
+            github_repos.stars
+        FROM crates INNER JOIN releases ON crates.id = releases.crate_id
+                    LEFT JOIN github_repos ON releases.github_repo = github_repos.id
+        WHERE crates.name = ANY($1) AND crates.name || ':' || releases.version = ANY($2)
+        ",
+            &[&names, &names_and_versions],
+        )?
+        .into_iter()
+        .map(|row| {
+            let stars: Option<_> = row.get("stars");
+            Release {
+                name: row.get("name"),
+                version: row.get("version"),
+                description: row.get("description"),
+                release_time: row.get("release_time"),
+                target_name: row.get("target_name"),
+                rustdoc_status: row.get("rustdoc_status"),
+                stars: stars.unwrap_or(0),
+            }
         })
         .collect();
-
-    Ok((total_results, packages))
+    Ok((releases.meta.total, crates))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
