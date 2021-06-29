@@ -69,26 +69,36 @@ pub(crate) fn get_releases(conn: &mut Client, page: i64, limit: i64, order: Orde
 
     // WARNING: it is _crucial_ that this always be hard-coded and NEVER be user input
     let (ordering, filter_failed): (&'static str, _) = match order {
-        Order::ReleaseTime => ("releases.release_time", false),
-        Order::GithubStars => ("repositories.stars", false),
-        Order::RecentFailures => ("releases.release_time", true),
-        Order::FailuresByGithubStars => ("repositories.stars", true),
+        Order::ReleaseTime => ("release_time", false),
+        Order::GithubStars => ("stars", false),
+        Order::RecentFailures => ("release_time", true),
+        Order::FailuresByGithubStars => ("stars", true),
     };
     let query = format!(
-        "SELECT crates.name,
-            releases.version,
-            releases.description,
-            releases.target_name,
-            releases.release_time,
-            releases.rustdoc_status,
-            repositories.stars
-        FROM crates
-        INNER JOIN releases ON crates.latest_version_id = releases.id
-        LEFT JOIN repositories ON releases.repository_id = repositories.id
-        WHERE
-            ((NOT $3) OR (releases.build_status = FALSE AND releases.is_library = TRUE)) 
-            AND {0} IS NOT NULL
-
+        "SELECT name,
+            version,
+            description,
+            target_name,
+            release_time,
+            rustdoc_status,
+            stars
+        FROM (
+            SELECT crates.name,
+                releases.version,
+                releases.description,
+                releases.target_name,
+                releases.release_time,
+                releases.rustdoc_status,
+                repositories.stars,
+                rank() OVER (PARTITION BY repository_id ORDER BY release_time DESC) AS rank
+            FROM crates
+            INNER JOIN releases ON crates.latest_version_id = releases.id
+            LEFT JOIN repositories ON releases.repository_id = repositories.id
+            WHERE
+                ((NOT $3) OR (releases.build_status = FALSE AND releases.is_library = TRUE))
+                AND {0} IS NOT NULL
+        ) i
+        WHERE rank = 1
         ORDER BY {0} DESC
         LIMIT $1 OFFSET $2",
         ordering,
@@ -1138,7 +1148,7 @@ mod tests {
             env.fake_release()
                 .name("crate_that_succeeded_with_github")
                 .version("0.2.0")
-                .github_stats("some/repo", 66, 22, 11)
+                .github_stats("some/repo1", 66, 22, 11)
                 .release_time(Utc.ymd(2020, 4, 20).and_hms(4, 33, 50))
                 .create()?;
 
@@ -1151,7 +1161,7 @@ mod tests {
             env.fake_release()
                 .name("crate_that_failed_with_github")
                 .version("0.1.0")
-                .github_stats("some/repo", 33, 22, 11)
+                .github_stats("some/repo2", 33, 22, 11)
                 .release_time(Utc.ymd(2020, 6, 16).and_hms(4, 33, 50))
                 .build_result_failed()
                 .create()?;
@@ -1325,6 +1335,31 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[test]
+    fn repos_deduplicated() {
+        wrapper(|env| {
+            // make sure repositories get at most one release shown
+            env.fake_release()
+                .name("workspace_crate1")
+                .github_stats("some/repo", 33, 22, 11)
+                .release_time(Utc.ymd(2020, 5, 15).and_hms(4, 33, 50))
+                .version("0.1.0")
+                .create()?;
+            env.fake_release()
+                .name("workspace_crate2")
+                .github_stats("some/repo", 34, 22, 11)
+                .release_time(Utc.ymd(2020, 5, 16).and_hms(4, 33, 50))
+                .version("0.1.0")
+                .create()?;
+
+            let links = get_release_links("/", env.frontend())?;
+
+            assert_eq!(links.len(), 1, "{:?}", links);
+            assert_eq!(links[0], "/workspace_crate2/0.1.0/workspace_crate2/");
+            Ok(())
+        });
     }
 
     #[test]

@@ -386,14 +386,16 @@ impl FakeGithubStats {
             .get(0);
         let host_id = base64::encode(format!("FAKE ID {}", existing_count));
 
-        let data = conn.query_one(
+        let data = conn.query(
             "INSERT INTO repositories (host, host_id, name, description, last_commit, stars, forks, issues, updated_at)
              VALUES ('github.com', $1, $2, 'Fake description!', NOW(), $3, $4, $5, NOW())
+             ON CONFLICT (host, name) DO UPDATE SET stars = $3, forks = $4, issues = $5
              RETURNING id;",
             &[&host_id, &self.repo, &self.stars, &self.forks, &self.issues],
         )?;
+        assert_eq!(data.len(), 1);
 
-        Ok(data.get(0))
+        Ok(data[0].get(0))
     }
 }
 
