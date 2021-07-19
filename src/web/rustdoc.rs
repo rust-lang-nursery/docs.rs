@@ -12,7 +12,7 @@ use crate::{
 };
 use iron::url::percent_encoding::percent_decode;
 use iron::{
-    headers::{CacheControl, CacheDirective, Expires, HttpDate},
+    headers::{Expires, HttpDate},
     modifiers::Redirect,
     status, Handler, IronResult, Request, Response, Url,
 };
@@ -588,79 +588,19 @@ pub fn target_redirect_handler(req: &mut Request) -> IronResult<Response> {
 }
 
 pub fn badge_handler(req: &mut Request) -> IronResult<Response> {
-    use badge::{Badge, BadgeOptions};
-    use iron::headers::ContentType;
-    let version = {
-        let mut params = req.url.as_ref().query_pairs();
-        match params.find(|(key, _)| key == "version") {
-            Some((_, version)) => version.into_owned(),
-            None => "*".to_owned(),
-        }
-    };
-
+    let version = req
+        .url
+        .as_ref()
+        .query_pairs()
+        .find(|(key, _)| key == "version");
+    let version = version
+        .as_ref()
+        .map(|(_, version)| version.as_ref())
+        .unwrap_or("latest");
     let name = cexpect!(req, extension!(req, Router).find("crate"));
-    let mut conn = extension!(req, Pool).get()?;
-
-    let options =
-        match match_version(&mut conn, name, Some(&version)).and_then(|m| m.assume_exact()) {
-            Ok(MatchSemver::Exact((version, id))) => {
-                let rows = ctry!(
-                    req,
-                    conn.query(
-                        "SELECT rustdoc_status
-                     FROM releases
-                     WHERE releases.id = $1",
-                        &[&id]
-                    ),
-                );
-                if !rows.is_empty() && rows[0].get(0) {
-                    BadgeOptions {
-                        subject: "docs".to_owned(),
-                        status: version,
-                        color: "#4d76ae".to_owned(),
-                    }
-                } else {
-                    BadgeOptions {
-                        subject: "docs".to_owned(),
-                        status: version,
-                        color: "#e05d44".to_owned(),
-                    }
-                }
-            }
-
-            Ok(MatchSemver::Semver((version, _))) => {
-                let base_url = format!("{}/{}/badge.svg", redirect_base(req), name);
-                let url = ctry!(
-                    req,
-                    iron::url::Url::parse_with_params(&base_url, &[("version", version)]),
-                );
-                let iron_url = ctry!(req, Url::from_generic_url(url));
-                return Ok(super::redirect(iron_url));
-            }
-
-            Err(Nope::VersionNotFound) => BadgeOptions {
-                subject: "docs".to_owned(),
-                status: "version not found".to_owned(),
-                color: "#e05d44".to_owned(),
-            },
-
-            Err(_) => BadgeOptions {
-                subject: "docs".to_owned(),
-                status: "no builds".to_owned(),
-                color: "#e05d44".to_owned(),
-            },
-        };
-
-    let mut resp = Response::with((status::Ok, ctry!(req, Badge::new(options)).to_svg()));
-    resp.headers
-        .set(ContentType("image/svg+xml".parse().unwrap()));
-    resp.headers.set(Expires(HttpDate(time::now())));
-    resp.headers.set(CacheControl(vec![
-        CacheDirective::NoCache,
-        CacheDirective::NoStore,
-        CacheDirective::MustRevalidate,
-    ]));
-    Ok(resp)
+    let url = format!("https://img.shields.io/docsrs/{}/{}", name, version);
+    let url = ctry!(req, Url::parse(&url));
+    Ok(Response::with((status::MovedPermanently, Redirect(url))))
 }
 
 /// Serves shared web resources used by rustdoc-generated documentation.
@@ -1040,17 +980,43 @@ mod test {
     #[test]
     fn badges_are_urlencoded() {
         wrapper(|env| {
+            use reqwest::Url;
+            use url::Host;
+
             env.fake_release()
                 .name("zstd")
                 .version("0.5.1+zstd.1.4.4")
                 .create()?;
 
-            let frontend = env.frontend();
-            assert_redirect(
-                "/zstd/badge.svg",
-                "/zstd/badge.svg?version=0.5.1%2Bzstd.1.4.4",
-                &frontend,
-            )?;
+            let frontend = env.override_frontend(|frontend| {
+                use reqwest::blocking::Client;
+                use reqwest::redirect::Policy;
+                // avoid making network requests
+                frontend.client = Client::builder().redirect(Policy::none()).build().unwrap();
+            });
+            let mut last_url = "/zstd/badge.svg".to_owned();
+            let mut response = frontend.get(&last_url).send()?;
+            let mut current_url = response.url().clone();
+            // follow redirects until it actually goes out into the internet
+            while !matches!(current_url.host(), Some(Host::Domain(_))) {
+                println!("({} -> {})", last_url, current_url);
+                assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+                last_url = response.url().to_string();
+                response = frontend.get(response.url().as_str()).send().unwrap();
+                current_url = Url::parse(response.headers()[reqwest::header::LOCATION].to_str()?)?;
+            }
+            println!("({} -> {})", last_url, current_url);
+            assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+            assert_eq!(
+                current_url.as_str(),
+                "https://img.shields.io/docsrs/zstd/latest"
+            );
+            // make sure we aren't actually making network requests
+            assert_ne!(
+                response.url().as_str(),
+                "https://img.shields.io/docsrs/zstd/latest"
+            );
+
             Ok(())
         })
     }

@@ -5,51 +5,7 @@
 {%- block body -%}
 	<h1>Badges</h1>
 
-	<div class="about-page">
 	<div class="container pure-u-5-6 about">
-	<p>
-		You can use badges to show state of your documentation to your users.
-		The default badge will be pointed at the latest version of a crate.
-		You can use <code>version</code> parameter to show status of documentation for
-		any version you want.
-	</p>
-
-	<p>
-		Badge will display in blue if docs.rs is successfully hosting your crate
-		documentation, and red if building documentation failing.
-	</p>
-
-	<p>Example badges for the mio crate:</p>
-	<table class="pure-table pure-table-horizontal">
-		<thead>
-		<tr>
-			<th>URL</th>
-			<th>Badge</th>
-		</tr>
-		</thead>
-
-		<tbody>
-		{%- set mio_badge = "https://docs.rs/mio/badge.svg" -%}
-		<tr>
-			<td>Latest version: <a href="{{ mio_badge | safe }}">{{ mio_badge }}</a></td>
-			<td><img src="{{ mio_badge | safe }}" alt="mio" /></td>
-		</tr>
-
-		<tr>
-			<td>
-			Version 0.4.4: <a href="{{ mio_badge | safe }}?version=0.4.4">{{ mio_badge }}?version=0.4.4</a>
-			</td>
-			<td><img src="{{ mio_badge | safe }}?version=0.4.4" alt="mio" /></td>
-		</tr>
-
-		<tr>
-			<td>
-			Version 0.1.0: <a href="{{ mio_badge | safe }}?version=0.1.0">{{ mio_badge }}?version=0.1.0</a>
-			</td>
-			<td><img src="{{ mio_badge | safe }}?version=0.1.0" alt="mio" /></td>
-		</tr>
-		</tbody>
-	</table>
-	</div>
+	<p>Docs.rs no longer has its own badges. Consider using <a href="https://shields.io">shields.io</a> instead.</p>
 	</div>
 {%- endblock body %}

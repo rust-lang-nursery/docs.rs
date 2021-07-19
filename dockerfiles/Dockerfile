@@ -26,14 +26,12 @@ ENV PATH=/root/.cargo/bin:$PATH
 # every time the source code changes. This takes advantage of Docker's layer
 # caching, and it works by copying the Cargo.{toml,lock} with dummy source code
 # and doing a full build with it.
-RUN mkdir -p /build/src/web/badge
 WORKDIR /build
 COPY benches benches
 COPY Cargo.lock Cargo.toml ./
-COPY crates/badge crates/badge/
 COPY crates/metadata crates/metadata/
 COPY crates/font-awesome-as-a-crate crates/font-awesome-as-a-crate
-RUN mkdir src/bin && \
+RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/bin/cratesfyi.rs && \
     echo "fn main() {}" > build.rs
 
