@@ -1,4 +1,4 @@
-{# The example Cargo.toml used in about.html #}
+{~# The example Cargo.toml used in about.html #~}
 [package]
 name = "test"
 
