@@ -265,12 +265,12 @@ div.recent-releases-container {
         }
     }
 
-    .release:hover,
-    li.selected > .release {
+    a.release:hover,
+    a.release:focus {
         background-color: var(--color-background-code);
     }
 
-    li:last-child .release {
+    a.release:last-of-type {
         border-bottom: none;
     }
 

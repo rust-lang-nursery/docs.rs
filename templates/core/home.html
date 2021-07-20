@@ -32,70 +32,41 @@
                 </a>
             </div>
 
-            <ul>
-                {%- for release in recent_releases -%}
-                    {%- if release.rustdoc_status -%}
-                        {%- set release_url = "/" ~ release.name ~ "/" ~ release.version ~ "/" ~ release.target_name ~ "/" -%}
-                    {%- else -%}
-                        {%- set release_url = "/crate/" ~ release.name ~ "/" ~ release.version -%}
-                    {%- endif -%}
+            {%- for release in recent_releases -%}
+                {%- if release.rustdoc_status -%}
+                    {%- set release_url = "/" ~ release.name ~ "/" ~ release.version ~ "/" ~ release.target_name ~ "/" -%}
+                {%- else -%}
+                    {%- set release_url = "/crate/" ~ release.name ~ "/" ~ release.version -%}
+                {%- endif -%}
 
-                    <li>
-                        <a href="{{ release_url | safe }}"
-                            class="release">
-                            <div class="pure-g">
-                                <div class="pure-u-1 pure-u-sm-6-24 pure-u-md-5-24 name">
-                                    {{ release.name }}-{{ release.version }}
-                                </div>
-                                <div class="pure-u-1 pure-u-sm-14-24 pure-u-md-16-24 description">
-                                    {{ release.description }}
-                                </div>
+                <a href="{{ release_url | safe }}"
+                    class="release">
+                    <div class="pure-g">
+                        <div class="pure-u-1 pure-u-sm-6-24 pure-u-md-5-24 name">
+                            {{ release.name }}-{{ release.version }}
+                        </div>
+                        <div class="pure-u-1 pure-u-sm-14-24 pure-u-md-16-24 description">
+                            {{ release.description }}
+                        </div>
 
-                                {%- if varsb.show_stars -%}
-                                    <div class="pure-u-1 pure-u-sm-4-24 pure-u-md-3-24 date">
-                                        {{ release.stars }}
-                                        {{ "star" | fas }}
-                                    </div>
-                                {%- else -%}
-                                    <div class="pure-u-1 pure-u-sm-4-24 pure-u-md-3-24 date"
-                                        title="{{ release.release_time | date(format='%FT%TZ') }}">
-                                        {{ release.release_time | timeformat(relative=true) }}
-                                    </div>
-                                {%- endif -%}
+                        {%- if varsb.show_stars -%}
+                            <div class="pure-u-1 pure-u-sm-4-24 pure-u-md-3-24 date">
+                                {{ release.stars }}
+                                {{ "star" | fas }}
                             </div>
-                        </a>
-                    </li>
-                {%- endfor -%}
-            </ul>
+                        {%- else -%}
+                            <div class="pure-u-1 pure-u-sm-4-24 pure-u-md-3-24 date"
+                                title="{{ release.release_time | date(format='%FT%TZ') }}">
+                                {{ release.release_time | timeformat(relative=true) }}
+                            </div>
+                        {%- endif -%}
+                    </div>
+                </a>
+            {%- endfor -%}
         </div>
     </div>
 {%- endblock body -%}
 
 {%- block javascript -%}
-    <script type="text/javascript" nonce="{{ csp_nonce }}">
-        function getKey(ev) {
-            if ("key" in ev && typeof ev.key != "undefined") {
-                return ev.key;
-            }
-
-            return String.fromCharCode(ev.charCode || ev.keyCode);
-        }
-
-        function handleShortcut(ev) {
-            if (ev.ctrlKey || ev.altKey || ev.metaKey || document.activeElement.tagName === "INPUT") {
-                return;
-            }
-
-            switch (getKey(ev)) {
-                case "s":
-                case "S":
-                    ev.preventDefault();
-                    document.getElementById("search").focus();
-                    break;
-            }
-        }
-
-        document.onkeypress = handleShortcut;
-        document.onkeydown = handleShortcut;
-    </script>
+   <script nonce="{{ csp_nonce }}" type="text/javascript" src="/-/static/keyboard.js?{{ docsrs_version() | slugify }}"></script>
 {%- endblock javascript -%}
